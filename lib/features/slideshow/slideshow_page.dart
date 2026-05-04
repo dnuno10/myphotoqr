@@ -68,23 +68,20 @@ class _SlideshowPageState extends State<SlideshowPage> {
           .eq('album_id', album.id)
           .order('created_at', ascending: false)
           .listen((rows) {
-            final media = rows
-                .map((e) => MediaUpload.fromJson(e))
-                .where((m) {
-                  if (settings.onlyApprovedMedia &&
-                      m.status.toLowerCase() != 'approved') {
-                    return false;
-                  }
-                  if (m.isHidden) return false;
-                  if (settings.onlyFeaturedMedia && !m.isFeatured) return false;
+            final media = rows.map((e) => MediaUpload.fromJson(e)).where((m) {
+              if (settings.onlyApprovedMedia &&
+                  m.status.toLowerCase() != 'approved') {
+                return false;
+              }
+              if (m.isHidden) return false;
+              if (settings.onlyFeaturedMedia && !m.isFeatured) return false;
 
-                  if (m.type == 'photo') return settings.showPhotos;
-                  if (m.type == 'video') return settings.showVideos;
-                  if (m.type == 'audio') return settings.showVideos;
+              if (m.type == 'photo') return settings.showPhotos;
+              if (m.type == 'video') return settings.showVideos;
+              if (m.type == 'audio') return settings.showVideos;
 
-                  return true;
-                })
-                .toList();
+              return true;
+            }).toList();
 
             if (!mounted) return;
             setState(() {
@@ -100,25 +97,24 @@ class _SlideshowPageState extends State<SlideshowPage> {
             .eq('album_id', album.id)
             .order('created_at', ascending: false)
             .listen((rows) {
-              final notes = rows
-                  .map((e) => MemoryNote.fromJson(e))
-                  .where((n) {
-                    if (settings.onlyApprovedMedia &&
-                        n.status.toLowerCase() != 'approved') {
-                      return false;
-                    }
-                    if (n.isHidden) return false;
-                    if (settings.onlyFeaturedMedia && !n.isFeatured) return false;
-                    return true;
-                  })
-                  .toList();
+              final notes = rows.map((e) => MemoryNote.fromJson(e)).where((n) {
+                if (settings.onlyApprovedMedia &&
+                    n.status.toLowerCase() != 'approved') {
+                  return false;
+                }
+                if (n.isHidden) return false;
+                if (settings.onlyFeaturedMedia && !n.isFeatured) return false;
+                return true;
+              }).toList();
 
               if (!mounted) return;
               setState(() => _notes = notes);
             });
       }
 
-      final interval = settings.intervalSeconds <= 0 ? 5 : settings.intervalSeconds;
+      final interval = settings.intervalSeconds <= 0
+          ? 5
+          : settings.intervalSeconds;
       _timer = Timer.periodic(Duration(seconds: interval), (_) {
         if (!mounted) return;
         final items = _buildItems(settings);
@@ -136,9 +132,7 @@ class _SlideshowPageState extends State<SlideshowPage> {
       return Scaffold(body: ErrorView(message: _error.toString()));
     }
     if (_album == null) {
-      return const Scaffold(
-        body: LoadingView(message: 'Cargando slideshow...'),
-      );
+      return const Scaffold(body: LoadingView(message: 'Loading slideshow...'));
     }
 
     final album = _album!;
@@ -146,6 +140,9 @@ class _SlideshowPageState extends State<SlideshowPage> {
 
     final items = _buildItems(settings);
     final safeIndex = items.isEmpty ? 0 : (_index >= items.length ? 0 : _index);
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 600;
+    final hudPad = compact ? 16.0 : 34.0;
 
     return Scaffold(
       backgroundColor: (settings.backgroundColor).toColorOr(Colors.black),
@@ -161,21 +158,21 @@ class _SlideshowPageState extends State<SlideshowPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const LogoMark(size: 72),
-                  const SizedBox(height: 22),
+                  LogoMark(size: compact ? 56 : 72),
+                  SizedBox(height: compact ? 16 : 22),
                   Icon(
                     iconForEventType(album.eventType),
-                    size: 34,
+                    size: compact ? 30 : 34,
                     color: (album.themeColor)
                         .toColorOr(Colors.white)
                         .mix(Colors.white, 0.25),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Esperando recuerdos...',
+                  SizedBox(height: compact ? 10 : 12),
+                  Text(
+                    'Waiting for memories...',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 34,
+                      fontSize: compact ? 28 : 34,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -189,13 +186,20 @@ class _SlideshowPageState extends State<SlideshowPage> {
                   duration: const Duration(milliseconds: 850),
                   transitionBuilder: (child, animation) {
                     if (settings.transitionStyle.toLowerCase() == 'slide') {
-                      final offsetAnimation = Tween<Offset>(
-                        begin: const Offset(0.06, 0),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                      final offsetAnimation =
+                          Tween<Offset>(
+                            begin: const Offset(0.06, 0),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOut,
+                            ),
+                          );
+                      return SlideTransition(
+                        position: offsetAnimation,
+                        child: child,
                       );
-                      return SlideTransition(position: offsetAnimation, child: child);
                     }
                     return FadeTransition(opacity: animation, child: child);
                   },
@@ -207,11 +211,11 @@ class _SlideshowPageState extends State<SlideshowPage> {
                   ),
                 ),
                 Positioned(
-                  left: 34,
-                  right: 34,
-                  bottom: 34,
+                  left: hudPad,
+                  right: hudPad,
+                  bottom: hudPad,
                   child: Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(compact ? 16 : 20),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(.45),
                       borderRadius: BorderRadius.circular(16),
@@ -219,14 +223,14 @@ class _SlideshowPageState extends State<SlideshowPage> {
                     ),
                     child: Row(
                       children: [
-                        const LogoMark(size: 44),
-                        const SizedBox(width: 16),
+                        LogoMark(size: compact ? 38 : 44),
+                        SizedBox(width: compact ? 12 : 16),
                         Expanded(
                           child: Text(
                             album.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 30,
+                              fontSize: compact ? 22 : 30,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0,
                             ),
@@ -248,7 +252,8 @@ class _SlideshowPageState extends State<SlideshowPage> {
   List<_SlideContent> _buildItems(SlideshowSettings settings) {
     final items = <_SlideContent>[
       for (final m in _media) _SlideContent.media(m),
-      if (settings.showNotes) for (final n in _notes) _SlideContent.note(n),
+      if (settings.showNotes)
+        for (final n in _notes) _SlideContent.note(n),
     ];
 
     items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -332,8 +337,7 @@ class _SlideItem extends StatelessWidget {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            if (showCaptions &&
-                (media.caption ?? '').trim().isNotEmpty) ...[
+            if (showCaptions && (media.caption ?? '').trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
                 media.caption!,

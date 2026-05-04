@@ -118,7 +118,10 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
       await launchUrl(uri, mode: LaunchMode.platformDefault);
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not export album: $e');
+      context.showTopRightSnackBar(
+        'Could not export album: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -186,114 +189,128 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
                       padding: const EdgeInsets.all(20),
                       child: SaasSurface(
                         padding: const EdgeInsets.all(20),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isCompact = constraints.maxWidth < 720;
+                        color: Colors.white.withOpacity(0.92),
+                        borderColor: Colors.white.withOpacity(0.65),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _AlbumHeroImages(album: album),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isCompact = constraints.maxWidth < 720;
 
-                            if (isCompact) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                                if (isCompact) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const LogoMark(size: 44),
-                                      const Spacer(),
-                                      if (settings.allowGuestDownloads)
-                                        Padding(
-                                          padding: const EdgeInsets.only(right: 10),
-                                          child: SizedBox(
-                                            width: 46,
+                                      Row(
+                                        children: [
+                                          const LogoMark(size: 44),
+                                          const Spacer(),
+                                          if (settings.allowGuestDownloads)
+                                            Padding(
+                                              padding: const EdgeInsets.only(right: 10),
+                                              child: SizedBox(
+                                                width: 46,
+                                                height: 46,
+                                                child: OutlinedButton(
+                                                  onPressed: _exporting
+                                                      ? null
+                                                      : () =>
+                                                            _exportAlbum(album, settings),
+                                                  child: _exporting
+                                                      ? const SizedBox(
+                                                          width: 18,
+                                                          height: 18,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                            strokeWidth: 2.2,
+                                                          ),
+                                                        )
+                                                      : const Icon(
+                                                          Icons.download_outlined,
+                                                          size: 20,
+                                                        ),
+                                                ),
+                                              ),
+                                            ),
+                                          SizedBox(
+                                            width: 118,
                                             height: 46,
-                                            child: OutlinedButton(
-                                              onPressed: _exporting
-                                                  ? null
-                                                  : () => _exportAlbum(album, settings),
-                                              child: _exporting
-                                                  ? const SizedBox(
-                                                      width: 18,
-                                                      height: 18,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2.2,
-                                                      ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.download_outlined,
-                                                      size: 20,
-                                                    ),
+                                            child: _PrimaryUploadButton(
+                                              compact: true,
+                                              onPressed: () {
+                                                context.go(
+                                                  '/a/${album.slug}/upload',
+                                                );
+                                              },
                                             ),
                                           ),
-                                        ),
-                                      SizedBox(
-                                        width: 118,
-                                        height: 46,
-                                        child: _PrimaryUploadButton(
-                                          compact: true,
-                                          onPressed: () {
-                                            context.go(
-                                              '/a/${album.slug}/upload',
-                                            );
-                                          },
-                                        ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _AlbumPublicHeaderText(
+                                        eventCopy: eventCopy,
+                                        album: album,
                                       ),
                                     ],
-                                  ),
-                                  const SizedBox(height: 18),
-                                  _AlbumPublicHeaderText(
-                                    eventCopy: eventCopy,
-                                    album: album,
-                                  ),
-                                ],
-                              );
-                            }
+                                  );
+                                }
 
-                            return Row(
-                              children: [
-                                const LogoMark(size: 44),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: _AlbumPublicHeaderText(
-                                    eventCopy: eventCopy,
-                                    album: album,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                if (settings.allowGuestDownloads) ...[
-                                  SizedBox(
-                                    width: 160,
-                                    height: 46,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _exporting
-                                          ? null
-                                          : () => _exportAlbum(album, settings),
-                                      icon: _exporting
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.download_outlined,
-                                              size: 18,
-                                            ),
-                                      label: Text(_exporting ? 'Preparing…' : 'Download'),
+                                return Row(
+                                  children: [
+                                    const LogoMark(size: 44),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: _AlbumPublicHeaderText(
+                                        eventCopy: eventCopy,
+                                        album: album,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                ],
-                                SizedBox(
-                                  width: 178,
-                                  height: 46,
-                                  child: _PrimaryUploadButton(
-                                    onPressed: () {
-                                      context.go('/a/${album.slug}/upload');
-                                    },
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                                    const SizedBox(width: 14),
+                                    if (settings.allowGuestDownloads) ...[
+                                      SizedBox(
+                                        width: 160,
+                                        height: 46,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _exporting
+                                              ? null
+                                              : () =>
+                                                    _exportAlbum(album, settings),
+                                          icon: _exporting
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2.2,
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  Icons.download_outlined,
+                                                  size: 18,
+                                                ),
+                                          label: Text(
+                                            _exporting ? 'Preparing…' : 'Download',
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                    SizedBox(
+                                      width: 178,
+                                      height: 46,
+                                      child: _PrimaryUploadButton(
+                                        onPressed: () {
+                                          context.go('/a/${album.slug}/upload');
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -346,6 +363,8 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
                             child: SaasSurface(
                               constraints: const BoxConstraints(maxWidth: 520),
                               padding: const EdgeInsets.all(18),
+                              color: Colors.white.withOpacity(0.92),
+                              borderColor: Colors.white.withOpacity(0.65),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -390,6 +409,144 @@ class _PublicAlbumBundle {
 
   final Album album;
   final AlbumSettings settings;
+}
+
+class _AlbumHeroImages extends StatelessWidget {
+  const _AlbumHeroImages({required this.album});
+
+  final Album album;
+
+  @override
+  Widget build(BuildContext context) {
+    final bannerUrl = (album.bannerImageUrl ?? '').trim();
+    final coverUrl = (album.coverImageUrl ?? '').trim();
+    final hasBanner = bannerUrl.isNotEmpty;
+    final hasCover = coverUrl.isNotEmpty;
+
+    if (!hasBanner && !hasCover) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final bannerHeight = width < 520
+            ? 140.0
+            : width < 900
+            ? 180.0
+            : 220.0;
+        final coverSize = width < 520 ? 72.0 : 84.0;
+
+        Widget imageBox({
+          required String url,
+          required double width,
+          required double height,
+          BorderRadius? borderRadius,
+        }) {
+          return ClipRRect(
+            borderRadius: borderRadius ?? BorderRadius.circular(14),
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stack) {
+                  return Container(
+                    color: const Color(0xFFF1F2F5),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: const Color(0xFFF1F2F5),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+
+        if (hasBanner) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    imageBox(
+                      url: bannerUrl,
+                      width: double.infinity,
+                      height: bannerHeight,
+                    ),
+                    if (hasCover)
+                      Positioned(
+                        left: 14,
+                        bottom: -coverSize / 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE5E5EA)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x14000000),
+                                blurRadius: 18,
+                                offset: Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: imageBox(
+                            url: coverUrl,
+                            width: coverSize,
+                            height: coverSize,
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (hasCover) SizedBox(height: coverSize / 2),
+              ],
+            ),
+          );
+        }
+
+        // Cover only
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
+              ),
+              child: imageBox(
+                url: coverUrl,
+                width: coverSize,
+                height: coverSize,
+                borderRadius: BorderRadius.circular(13),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _AlbumPublicHeaderText extends StatelessWidget {

@@ -21,17 +21,14 @@ class ErrorView extends StatelessWidget {
             const Icon(Icons.error_outline_rounded, size: 46),
             const SizedBox(height: 10),
             const Text(
-              'Algo no salió bien',
+              'Something went wrong',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(message, textAlign: TextAlign.center),
             if (onRetry != null) ...[
               const SizedBox(height: 14),
-              FilledButton(
-                onPressed: onRetry,
-                child: const Text('Intentar de nuevo'),
-              ),
+              FilledButton(onPressed: onRetry, child: const Text('Try again')),
             ],
           ],
         ),

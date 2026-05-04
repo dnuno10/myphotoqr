@@ -9,10 +9,8 @@ Future<ColorFillValue?> showColorFillPickerDialog(
 }) {
   return showDialog<ColorFillValue>(
     context: context,
-    builder: (context) => _ColorFillPickerDialog(
-      title: title,
-      initialValue: initialValue,
-    ),
+    builder: (context) =>
+        _ColorFillPickerDialog(title: title, initialValue: initialValue),
   );
 }
 
@@ -136,8 +134,8 @@ class _ColorFillPickerDialogState extends State<_ColorFillPickerDialog>
             TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(text: 'Color sólido'),
-                Tab(text: 'Degradado'),
+                Tab(text: 'Solid color'),
+                Tab(text: 'Gradient'),
               ],
             ),
             const SizedBox(height: 14),
@@ -157,9 +155,12 @@ class _ColorFillPickerDialogState extends State<_ColorFillPickerDialog>
                     builder: (context, constraints) {
                       // Keep the gradient tab within the fixed 320px height by
                       // shrinking the SV square. The rest can scroll if needed.
-                      const reserved = 252.0; // preview + chips + paddings + angle + sliders
-                      final svHeight = (constraints.maxHeight - reserved)
-                          .clamp(64.0, 220.0);
+                      const reserved =
+                          252.0; // preview + chips + paddings + angle + sliders
+                      final svHeight = (constraints.maxHeight - reserved).clamp(
+                        64.0,
+                        220.0,
+                      );
 
                       return _GradientPicker(
                         angle: _angle,
@@ -314,9 +315,7 @@ class _SolidPickerState extends State<_SolidPicker> {
                     Positioned(
                       left: handle.dx - 10,
                       top: handle.dy - 10,
-                      child: _Handle(
-                        color: hsv.toColor(),
-                      ),
+                      child: _Handle(color: hsv.toColor()),
                     ),
                   ],
                 ),
@@ -325,10 +324,7 @@ class _SolidPickerState extends State<_SolidPicker> {
           ),
         ),
         const SizedBox(height: 14),
-        _HueSlider(
-          hue: hsv.hue,
-          onChanged: _updateHue,
-        ),
+        _HueSlider(hue: hsv.hue, onChanged: _updateHue),
       ],
     );
   }
@@ -520,18 +516,13 @@ class _Handle extends StatelessWidget {
         shape: BoxShape.circle,
         color: Colors.white,
         border: Border.all(color: Colors.black.withOpacity(0.18)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x20000000), blurRadius: 8),
-        ],
+        boxShadow: const [BoxShadow(color: Color(0x20000000), blurRadius: 8)],
       ),
       child: Center(
         child: Container(
           width: 14,
           height: 14,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
       ),
     );
@@ -578,7 +569,9 @@ class _StopChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? Colors.black.withOpacity(0.05) : const Color(0xFFF8F8FA),
+          color: selected
+              ? Colors.black.withOpacity(0.05)
+              : const Color(0xFFF8F8FA),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected ? Colors.black : const Color(0xFFECECF0),

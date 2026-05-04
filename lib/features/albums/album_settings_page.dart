@@ -10,14 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_config.dart';
 import '../../models/album.dart';
-import '../../models/album_access_token.dart';
 import '../../models/album_settings.dart';
-import '../../models/qr_code.dart';
 import '../../models/slideshow_settings.dart';
-import '../../services/album_access_token_service.dart';
 import '../../services/album_service.dart';
 import '../../services/album_settings_service.dart';
-import '../../services/qr_code_service.dart';
 import '../../services/slideshow_settings_service.dart';
 import '../../shared/ui/app_snackbars.dart';
 import '../../shared/widgets/color_fill_picker.dart';
@@ -38,16 +34,22 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
   final _albumService = AlbumService();
   final _albumSettingsService = AlbumSettingsService();
   final _slideshowSettingsService = SlideshowSettingsService();
-  final _qrCodeService = QrCodeService();
-  final _tokenService = AlbumAccessTokenService();
 
   final _titleCtrl = TextEditingController();
   final _eventTypeLabelCtrl = TextEditingController();
   final _themeEmojiCtrl = TextEditingController();
-  ColorFillValue _themeColorFill =
-      const ColorFillValue.solid(Color(0xFF111827));
-  ColorFillValue _backgroundFill =
-      const ColorFillValue.solid(Color(0xFFFFFFFF));
+  ColorFillValue _themeColorFill = const ColorFillValue.solid(
+    Color(0xFF111827),
+  );
+  ColorFillValue _backgroundFill = const ColorFillValue.solid(
+    Color(0xFFFFFFFF),
+  );
+  ColorFillValue _slideshowBackgroundFill = const ColorFillValue.solid(
+    Color(0xFF000000),
+  );
+  ColorFillValue _slideshowTextFill = const ColorFillValue.solid(
+    Color(0xFFFFFFFF),
+  );
   final _accessCodeHintCtrl = TextEditingController();
   final _accessCodeCtrl = TextEditingController();
 
@@ -61,16 +63,12 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
   final _slideshowTextColorCtrl = TextEditingController();
   final _slideshowMusicUrlCtrl = TextEditingController();
 
-  final _newTokenTypeCtrl = TextEditingController();
-
   bool _loading = true;
   bool _saving = false;
 
   Album? _album;
   AlbumSettings? _albumSettings;
   SlideshowSettings? _slideshowSettings;
-  QrCode? _qrCode;
-  List<AlbumAccessToken> _tokens = const [];
 
   // Album fields
   String _status = 'active';
@@ -124,7 +122,6 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     _slideshowBgColorCtrl.dispose();
     _slideshowTextColorCtrl.dispose();
     _slideshowMusicUrlCtrl.dispose();
-    _newTokenTypeCtrl.dispose();
     super.dispose();
   }
 
@@ -132,13 +129,9 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     try {
       final album = await _albumService.getAlbumById(widget.albumId);
       final albumSettings = await _albumSettingsService.getOrCreate(album.id);
-      final slideshowSettings =
-          await _slideshowSettingsService.getOrCreate(album.id);
-      final qrCode = await _qrCodeService.getOrCreate(
-        albumId: album.id,
-        albumSlug: album.slug,
+      final slideshowSettings = await _slideshowSettingsService.getOrCreate(
+        album.id,
       );
-      final tokens = await _tokenService.listTokens(album.id);
 
       if (!mounted) return;
 
@@ -146,8 +139,6 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
         _album = album;
         _albumSettings = albumSettings;
         _slideshowSettings = slideshowSettings;
-        _qrCode = qrCode;
-        _tokens = tokens;
 
         _status = album.status;
         _codeProtected = album.guestAccessCodeEnabled;
@@ -191,7 +182,8 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
         _slideshowEnabled = slideshowSettings.enabled;
         _slideshowTransitionCtrl.text = slideshowSettings.transitionStyle;
-        _slideshowIntervalCtrl.text = slideshowSettings.intervalSeconds.toString();
+        _slideshowIntervalCtrl.text = slideshowSettings.intervalSeconds
+            .toString();
         _slideshowShowPhotos = slideshowSettings.showPhotos;
         _slideshowShowVideos = slideshowSettings.showVideos;
         _slideshowShowNotes = slideshowSettings.showNotes;
@@ -201,23 +193,26 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
         _slideshowOnlyFeatured = slideshowSettings.onlyFeaturedMedia;
         _slideshowBgColorCtrl.text = slideshowSettings.backgroundColor;
         _slideshowTextColorCtrl.text = slideshowSettings.textColor;
-        _slideshowMusicUrlCtrl.text = slideshowSettings.backgroundMusicUrl ?? '';
+        _slideshowMusicUrlCtrl.text =
+            slideshowSettings.backgroundMusicUrl ?? '';
+
+        _slideshowBackgroundFill = ColorFillValue.solid(
+          hexToColor(_slideshowBgColorCtrl.text) ?? const Color(0xFF000000),
+        );
+        _slideshowTextFill = ColorFillValue.solid(
+          hexToColor(_slideshowTextColorCtrl.text) ?? const Color(0xFFFFFFFF),
+        );
 
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      context.showTopRightSnackBar('Could not load settings: $e');
+      context.showTopRightSnackBar(
+        'Could not load settings: $e',
+        type: ToastType.error,
+      );
     }
-  }
-
-  Future<void> _refreshTokens() async {
-    final album = _album;
-    if (album == null) return;
-    final tokens = await _tokenService.listTokens(album.id);
-    if (!mounted) return;
-    setState(() => _tokens = tokens);
   }
 
   Future<void> _saveAll() async {
@@ -232,17 +227,26 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
-      context.showTopRightSnackBar('Album name is required.');
+      context.showTopRightSnackBar(
+        'Album name is required.',
+        type: ToastType.error,
+      );
       return;
     }
     if (title.length > 150) {
-      context.showTopRightSnackBar('Album name must be 150 characters or less.');
+      context.showTopRightSnackBar(
+        'Album name must be 150 characters or less.',
+        type: ToastType.error,
+      );
       return;
     }
 
     final maxFileSizeMb = int.tryParse(_maxFileSizeCtrl.text.trim());
     if (maxFileSizeMb == null || maxFileSizeMb <= 0) {
-      context.showTopRightSnackBar('Max file size must be a positive number.');
+      context.showTopRightSnackBar(
+        'Max file size must be a positive number.',
+        type: ToastType.error,
+      );
       return;
     }
 
@@ -252,13 +256,17 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     if (!_allowPhotos && !_allowVideos && !_allowAudio) {
       context.showTopRightSnackBar(
         'Enable at least one media type: photos, videos or audio.',
+        type: ToastType.error,
       );
       return;
     }
 
     if (_codeProtected && _accessCodeCtrl.text.trim().isNotEmpty) {
       if (_accessCodeCtrl.text.trim().length < 4) {
-        context.showTopRightSnackBar('Access code must be at least 4 characters.');
+        context.showTopRightSnackBar(
+          'Access code must be at least 4 characters.',
+          type: ToastType.error,
+        );
         return;
       }
     }
@@ -291,9 +299,10 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
           'status': _status,
           'visibility': _codeProtected ? 'code_protected' : 'public',
           'guest_access_code_enabled': _codeProtected,
-          if (_codeProtected) 'guest_access_code_hint': _accessCodeHintCtrl.text.trim().isEmpty
-              ? null
-              : _accessCodeHintCtrl.text.trim(),
+          if (_codeProtected)
+            'guest_access_code_hint': _accessCodeHintCtrl.text.trim().isEmpty
+                ? null
+                : _accessCodeHintCtrl.text.trim(),
           if (_codeProtected && accessCodeHash != null)
             'guest_access_code_hash': accessCodeHash,
           if (!_codeProtected) ...{
@@ -368,17 +377,18 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
         _accessCodeCtrl.clear();
       });
 
-      context.showTopRightSnackBar('Settings saved.');
+      context.showTopRightSnackBar('Settings saved.', type: ToastType.success);
     } catch (e) {
-      context.showTopRightSnackBar('Could not save settings: $e');
+      context.showTopRightSnackBar(
+        'Could not save settings: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  Future<void> _pickAndUploadAlbumImage({
-    required String kind,
-  }) async {
+  Future<void> _pickAndUploadAlbumImage({required String kind}) async {
     final album = _album;
     if (album == null) return;
 
@@ -394,26 +404,30 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     final extension = (file.extension ?? p.extension(file.name))
         .replaceAll('.', '')
         .toLowerCase();
-    final mimeType = lookupMimeType(file.name, headerBytes: file.bytes) ??
+    final mimeType =
+        lookupMimeType(file.name, headerBytes: file.bytes) ??
         (extension == 'png'
             ? 'image/png'
             : extension == 'webp'
-                ? 'image/webp'
-                : 'image/jpeg');
+            ? 'image/webp'
+            : 'image/jpeg');
 
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final storagePath = '${album.id}/${kind}_$timestamp.$extension';
 
-    final storage =
-        Supabase.instance.client.storage.from(AppConfig.albumMediaBucket);
+    final storage = Supabase.instance.client.storage.from(
+      AppConfig.albumMediaBucket,
+    );
 
-    if (kind == 'cover' && (album.coverImageStoragePath ?? '').trim().isNotEmpty) {
+    if (kind == 'cover' &&
+        (album.coverImageStoragePath ?? '').trim().isNotEmpty) {
       try {
         await storage.remove([album.coverImageStoragePath!]);
       } catch (_) {}
     }
 
-    if (kind == 'banner' && (album.bannerImageStoragePath ?? '').trim().isNotEmpty) {
+    if (kind == 'banner' &&
+        (album.bannerImageStoragePath ?? '').trim().isNotEmpty) {
       try {
         await storage.remove([album.bannerImageStoragePath!]);
       } catch (_) {}
@@ -436,28 +450,29 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     final updated = await _albumService.updateAlbum(
       albumId: album.id,
       patch: kind == 'cover'
-          ? {
-              'cover_image_url': url,
-              'cover_image_storage_path': storagePath,
-            }
-          : {
-              'banner_image_url': url,
-              'banner_image_storage_path': storagePath,
-            },
+          ? {'cover_image_url': url, 'cover_image_storage_path': storagePath}
+          : {'banner_image_url': url, 'banner_image_storage_path': storagePath},
     );
 
     if (!mounted) return;
     setState(() => _album = updated);
-    context.showTopRightSnackBar('${kind == 'cover' ? 'Cover' : 'Banner'} updated.');
+    context.showTopRightSnackBar(
+      '${kind == 'cover' ? 'Cover' : 'Banner'} updated.',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _removeAlbumImage(String kind) async {
     final album = _album;
     if (album == null) return;
 
-    final storage = Supabase.instance.client.storage.from(AppConfig.albumMediaBucket);
+    final storage = Supabase.instance.client.storage.from(
+      AppConfig.albumMediaBucket,
+    );
 
-    final path = kind == 'cover' ? album.coverImageStoragePath : album.bannerImageStoragePath;
+    final path = kind == 'cover'
+        ? album.coverImageStoragePath
+        : album.bannerImageStoragePath;
     if ((path ?? '').trim().isNotEmpty) {
       try {
         await storage.remove([path!]);
@@ -473,87 +488,10 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
     if (!mounted) return;
     setState(() => _album = updated);
-    context.showTopRightSnackBar('${kind == 'cover' ? 'Cover' : 'Banner'} removed.');
-  }
-
-  Future<void> _uploadCustomQrImage() async {
-    final album = _album;
-    final qr = _qrCode;
-    if (album == null || qr == null) return;
-
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-      withData: kIsWeb,
+    context.showTopRightSnackBar(
+      '${kind == 'cover' ? 'Cover' : 'Banner'} removed.',
+      type: ToastType.success,
     );
-    if (result == null || result.files.isEmpty) return;
-
-    final file = result.files.first;
-    final extension = (file.extension ?? p.extension(file.name))
-        .replaceAll('.', '')
-        .toLowerCase();
-    final mimeType = lookupMimeType(file.name, headerBytes: file.bytes) ??
-        (extension == 'png'
-            ? 'image/png'
-            : extension == 'webp'
-                ? 'image/webp'
-                : 'image/jpeg');
-
-    final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final storagePath = '${album.id}/qr_custom_$timestamp.$extension';
-
-    final storage = Supabase.instance.client.storage.from(AppConfig.albumMediaBucket);
-
-    if ((qr.qrImageStoragePath ?? '').trim().isNotEmpty) {
-      try {
-        await storage.remove([qr.qrImageStoragePath!]);
-      } catch (_) {}
-    }
-
-    if (kIsWeb) {
-      final bytes = file.bytes;
-      if (bytes == null) throw Exception('Could not read file bytes.');
-      await storage.uploadBinary(
-        storagePath,
-        bytes,
-        fileOptions: FileOptions(contentType: mimeType, upsert: false),
-      );
-    } else {
-      throw Exception('Image uploads are only supported on web for now.');
-    }
-
-    final url = storage.getPublicUrl(storagePath);
-
-    final updated = qr.copyWith(
-      qrImageUrl: url,
-      qrImageStoragePath: storagePath,
-    );
-
-    await _qrCodeService.update(albumId: album.id, qrCode: updated);
-
-    if (!mounted) return;
-    setState(() => _qrCode = updated);
-    context.showTopRightSnackBar('Custom QR image updated.');
-  }
-
-  Future<void> _removeCustomQrImage() async {
-    final album = _album;
-    final qr = _qrCode;
-    if (album == null || qr == null) return;
-
-    final storage = Supabase.instance.client.storage.from(AppConfig.albumMediaBucket);
-    if ((qr.qrImageStoragePath ?? '').trim().isNotEmpty) {
-      try {
-        await storage.remove([qr.qrImageStoragePath!]);
-      } catch (_) {}
-    }
-
-    final updated = qr.copyWith(qrImageUrl: null, qrImageStoragePath: null);
-    await _qrCodeService.update(albumId: album.id, qrCode: updated);
-
-    if (!mounted) return;
-    setState(() => _qrCode = updated);
-    context.showTopRightSnackBar('Custom QR image removed.');
   }
 
   @override
@@ -575,637 +513,590 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
     final uploadUrl = '${AppConfig.appPublicBaseUrl}/a/${album.slug}/upload';
     final guestPageUrl = '${AppConfig.appPublicBaseUrl}/a/${album.slug}';
-    final slideshowUrl = '${AppConfig.appPublicBaseUrl}/slideshow/${album.slug}';
+    final slideshowUrl =
+        '${AppConfig.appPublicBaseUrl}/slideshow/${album.slug}';
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 900;
+        final padL = compact ? 16.0 : 20.0;
+        final padR = compact ? 16.0 : 24.0;
+        final padT = compact ? 16.0 : 20.0;
+
+        final listView = ListView(
+          padding: EdgeInsets.fromLTRB(padL, padT, padR, 30),
           children: [
-            _Sidebar(
-              onBack: () => context.go('/album/${album.id}'),
-              onGuestPage: () => context.go('/a/${album.slug}'),
-              onSlideshow: () => context.go('/slideshow/${album.slug}'),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 24, 30),
-                children: [
-                  Row(
+            LayoutBuilder(
+              builder: (context, headerConstraints) {
+                final narrow = headerConstraints.maxWidth < 520;
+
+                final title = const Text(
+                  'Album settings',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF15151A),
+                  ),
+                );
+
+                final saveButton = SizedBox(
+                  height: 44,
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _saveAll,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save_rounded, size: 18),
+                    label: Text(_saving ? 'Saving...' : 'Save changes'),
+                  ),
+                );
+
+                if (narrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Album settings',
-                          style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF15151A),
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 44,
-                        child: FilledButton.icon(
-                          onPressed: _saving ? null : _saveAll,
-                          icon: _saving
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.save_rounded, size: 18),
-                          label: Text(_saving ? 'Saving...' : 'Save changes'),
-                        ),
-                      ),
+                      title,
+                      const SizedBox(height: 12),
+                      SizedBox(width: double.infinity, child: saveButton),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    album.title,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black.withOpacity(0.55),
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: title),
+                    saveButton,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            Text(
+              album.title,
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.black.withOpacity(0.55),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            SaasSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle('Look & branding'),
+                  const SizedBox(height: 10),
+                  _LabeledField(
+                    label: 'Album name',
+                    child: TextField(
+                      controller: _titleCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Ex. Ana & Luis Wedding',
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('Look & branding'),
-                        const SizedBox(height: 10),
-                        _LabeledField(
-                          label: 'Album name',
-                          child: TextField(
-                            controller: _titleCtrl,
-                            decoration: const InputDecoration(
-                              hintText: 'Ex. Ana & Luis Wedding',
-                            ),
-                          ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Custom event type label (optional)',
+                    child: TextField(
+                      controller: _eventTypeLabelCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Ex. Civil wedding, Sweet 15, Baptism...',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Theme emoji (optional)',
+                    child: TextField(
+                      controller: _themeEmojiCtrl,
+                      decoration: const InputDecoration(hintText: 'Ex. 💍'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Theme color (hex)',
+                    child: _ColorFillTile(
+                      value: _themeColorFill,
+                      onEdit: () async {
+                        final result = await showColorFillPickerDialog(
+                          context,
+                          title: 'Theme color',
+                          initialValue: _themeColorFill,
+                        );
+                        if (result == null || !context.mounted) return;
+                        setState(() => _themeColorFill = result);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Background color (hex)',
+                    child: _ColorFillTile(
+                      value: _backgroundFill,
+                      onEdit: () async {
+                        final result = await showColorFillPickerDialog(
+                          context,
+                          title: 'Background',
+                          initialValue: _backgroundFill,
+                        );
+                        if (result == null || !context.mounted) return;
+                        setState(() => _backgroundFill = result);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Status',
+                    child: DropdownButtonFormField<String>(
+                      value: _status.trim().isEmpty ? 'draft' : _status,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'active',
+                          child: Text('Active'),
                         ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Custom event type label (optional)',
-                          child: TextField(
-                            controller: _eventTypeLabelCtrl,
-                            decoration: const InputDecoration(
-                              hintText: 'Ex. “Boda civil”, “XV de Ana”…',
-                            ),
-                          ),
+                        DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                        DropdownMenuItem(
+                          value: 'paused',
+                          child: Text('Paused'),
                         ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Theme emoji (optional)',
-                          child: TextField(
-                            controller: _themeEmojiCtrl,
-                            decoration: const InputDecoration(hintText: 'Ex. 💍'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Theme color (hex)',
-                          child: _ColorFillTile(
-                            value: _themeColorFill,
-                            onEdit: () async {
-                              final result = await showColorFillPickerDialog(
-                                context,
-                                title: 'Theme color',
-                                initialValue: _themeColorFill,
-                              );
-                              if (result == null || !context.mounted) return;
-                              setState(() => _themeColorFill = result);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Background color (hex)',
-                          child: _ColorFillTile(
-                            value: _backgroundFill,
-                            onEdit: () async {
-                              final result = await showColorFillPickerDialog(
-                                context,
-                                title: 'Background',
-                                initialValue: _backgroundFill,
-                              );
-                              if (result == null || !context.mounted) return;
-                              setState(() => _backgroundFill = result);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Status',
-                          child: DropdownButtonFormField<String>(
-                            value: _status.trim().isEmpty ? 'draft' : _status,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'active',
-                                child: Text('Active'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'draft',
-                                child: Text('Draft'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'paused',
-                                child: Text('Paused'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'archived',
-                                child: Text('Archived'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setState(() => _status = value);
-                            },
-                            decoration: const InputDecoration(),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _ImageTile(
-                          title: 'Cover image',
-                          url: album.coverImageUrl,
-                          onPick: () => _pickAndUploadAlbumImage(kind: 'cover'),
-                          onRemove: album.coverImageUrl == null
-                              ? null
-                              : () => _removeAlbumImage('cover'),
-                        ),
-                        const SizedBox(height: 10),
-                        _ImageTile(
-                          title: 'Banner image',
-                          url: album.bannerImageUrl,
-                          onPick: () => _pickAndUploadAlbumImage(kind: 'banner'),
-                          onRemove: album.bannerImageUrl == null
-                              ? null
-                              : () => _removeAlbumImage('banner'),
+                        DropdownMenuItem(
+                          value: 'archived',
+                          child: Text('Archived'),
                         ),
                       ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _status = value);
+                      },
+                      decoration: const InputDecoration(),
                     ),
                   ),
-
                   const SizedBox(height: 14),
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('Visibility & access'),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Protect with access code'),
-                          subtitle: const Text(
-                            'Guests must enter a code to upload and view.',
-                          ),
-                          value: _codeProtected,
-                          onChanged: (v) => setState(() => _codeProtected = v),
-                        ),
-                        if (_codeProtected) ...[
-                          const SizedBox(height: 10),
-                          _LabeledField(
-                            label: 'New access code (leave blank to keep current)',
-                            child: TextField(
-                              controller: _accessCodeCtrl,
-                              decoration: const InputDecoration(
-                                hintText: 'Min 4 characters',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _LabeledField(
-                            label: 'Access code hint (optional)',
-                            child: TextField(
-                              controller: _accessCodeHintCtrl,
-                              decoration: const InputDecoration(
-                                hintText: 'Ex. “The couple’s initials”…',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                  _ImageTile(
+                    title: 'Cover image',
+                    url: album.coverImageUrl,
+                    onPick: () => _pickAndUploadAlbumImage(kind: 'cover'),
+                    onRemove: album.coverImageUrl == null
+                        ? null
+                        : () => _removeAlbumImage('cover'),
                   ),
-
-                  const SizedBox(height: 14),
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('Guest uploads'),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          runSpacing: 8,
-                          spacing: 12,
-                          children: [
-                            _ToggleChip(
-                              label: 'Photos',
-                              selected: _allowPhotos,
-                              onChanged: (v) => setState(() => _allowPhotos = v),
-                            ),
-                            _ToggleChip(
-                              label: 'Videos',
-                              selected: _allowVideos,
-                              onChanged: (v) => setState(() => _allowVideos = v),
-                            ),
-                            _ToggleChip(
-                              label: 'Audio',
-                              selected: _allowAudio,
-                              onChanged: (v) => setState(() => _allowAudio = v),
-                            ),
-                            _ToggleChip(
-                              label: 'Notes',
-                              selected: _allowNotes,
-                              onChanged: (v) => setState(() => _allowNotes = v),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        _LabeledField(
-                          label: 'Max file size (MB)',
-                          child: TextField(
-                            controller: _maxFileSizeCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: '500'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Max video duration (seconds, optional)',
-                          child: TextField(
-                            controller: _maxVideoDurationCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'Ex. 60'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Max audio duration (seconds, optional)',
-                          child: TextField(
-                            controller: _maxAudioDurationCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'Ex. 30'),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Require guest name'),
-                          value: _requireGuestName,
-                          onChanged: (v) => setState(() => _requireGuestName = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Require guest email'),
-                          value: _requireGuestEmail,
-                          onChanged: (v) =>
-                              setState(() => _requireGuestEmail = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Allow guests to view gallery'),
-                          value: _allowGuestViewGallery,
-                          onChanged: (v) =>
-                              setState(() => _allowGuestViewGallery = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Allow guest downloads'),
-                          value: _allowGuestDownloads,
-                          onChanged: (v) =>
-                              setState(() => _allowGuestDownloads = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Show guest names'),
-                          value: _showGuestNames,
-                          onChanged: (v) => setState(() => _showGuestNames = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Show upload date'),
-                          value: _showUploadDate,
-                          onChanged: (v) => setState(() => _showUploadDate = v),
-                        ),
-                        const SizedBox(height: 4),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable live gallery'),
-                          value: _enableLiveGallery,
-                          onChanged: (v) =>
-                              setState(() => _enableLiveGallery = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable live slideshow'),
-                          value: _enableLiveSlideshow,
-                          onChanged: (v) =>
-                              setState(() => _enableLiveSlideshow = v),
-                        ),
-                        const SizedBox(height: 6),
-                        const Divider(height: 24),
-                        const _SectionTitle('Moderation'),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable moderation'),
-                          subtitle: const Text(
-                            'When enabled, uploads/notes can be pending approval.',
-                          ),
-                          value: _moderationEnabled,
-                          onChanged: (v) =>
-                              setState(() => _moderationEnabled = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Auto-approve uploads'),
-                          value: _autoApproveUploads,
-                          onChanged: (v) =>
-                              setState(() => _autoApproveUploads = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Auto-approve notes'),
-                          value: _autoApproveNotes,
-                          onChanged: (v) => setState(() => _autoApproveNotes = v),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('Slideshow'),
-                        const SizedBox(height: 6),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enabled'),
-                          value: _slideshowEnabled,
-                          onChanged: (v) =>
-                              setState(() => _slideshowEnabled = v),
-                        ),
-                        const SizedBox(height: 10),
-                        _LabeledField(
-                          label: 'Interval (seconds)',
-                          child: TextField(
-                            controller: _slideshowIntervalCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: '5'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Transition style',
-                          child: DropdownButtonFormField<String>(
-                            value: (_slideshowTransitionCtrl.text.trim().isEmpty
-                                    ? 'fade'
-                                    : _slideshowTransitionCtrl.text.trim())
-                                .toLowerCase(),
-                            items: const [
-                              DropdownMenuItem(value: 'fade', child: Text('Fade')),
-                              DropdownMenuItem(value: 'slide', child: Text('Slide')),
-                            ],
-                            onChanged: (value) {
-                              if (value == null) return;
-                              _slideshowTransitionCtrl.text = value;
-                              setState(() {});
-                            },
-                            decoration: const InputDecoration(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          runSpacing: 8,
-                          spacing: 12,
-                          children: [
-                            _ToggleChip(
-                              label: 'Photos',
-                              selected: _slideshowShowPhotos,
-                              onChanged: (v) =>
-                                  setState(() => _slideshowShowPhotos = v),
-                            ),
-                            _ToggleChip(
-                              label: 'Videos',
-                              selected: _slideshowShowVideos,
-                              onChanged: (v) =>
-                                  setState(() => _slideshowShowVideos = v),
-                            ),
-                            _ToggleChip(
-                              label: 'Notes',
-                              selected: _slideshowShowNotes,
-                              onChanged: (v) =>
-                                  setState(() => _slideshowShowNotes = v),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Show guest names'),
-                          value: _slideshowShowGuestNames,
-                          onChanged: (v) =>
-                              setState(() => _slideshowShowGuestNames = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Show captions'),
-                          value: _slideshowShowCaptions,
-                          onChanged: (v) =>
-                              setState(() => _slideshowShowCaptions = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Only approved media'),
-                          value: _slideshowOnlyApproved,
-                          onChanged: (v) =>
-                              setState(() => _slideshowOnlyApproved = v),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Only featured media'),
-                          value: _slideshowOnlyFeatured,
-                          onChanged: (v) =>
-                              setState(() => _slideshowOnlyFeatured = v),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Background color (hex)',
-                          child: _ColorField(controller: _slideshowBgColorCtrl),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Text color (hex)',
-                          child: _ColorField(controller: _slideshowTextColorCtrl),
-                        ),
-                        const SizedBox(height: 12),
-                        _LabeledField(
-                          label: 'Background music URL (optional)',
-                          child: TextField(
-                            controller: _slideshowMusicUrlCtrl,
-                            decoration: const InputDecoration(
-                              hintText: 'https://...',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _LinkRow(label: 'Guest page', value: guestPageUrl),
-                        _LinkRow(label: 'Upload page', value: uploadUrl),
-                        _LinkRow(label: 'Slideshow', value: slideshowUrl),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('Share links & tokens'),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Use tokens if you have DB enum values for `album_access_tokens.type`.',
-                          style: TextStyle(fontSize: 13.5),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _newTokenTypeCtrl,
-                                decoration: const InputDecoration(
-                                  hintText: 'Token type (enum value)',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              height: 44,
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final type = _newTokenTypeCtrl.text.trim();
-                                  if (type.isEmpty) {
-                                    context.showTopRightSnackBar('Token type is required.');
-                                    return;
-                                  }
-                                  try {
-                                    await _tokenService.createToken(
-                                      albumId: album.id,
-                                      type: type,
-                                    );
-                                    _newTokenTypeCtrl.clear();
-                                    await _refreshTokens();
-                                    if (!context.mounted) return;
-                                    context.showTopRightSnackBar('Token created.');
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    context.showTopRightSnackBar('Could not create token: $e');
-                                  }
-                                },
-                                child: const Text('Create'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (_tokens.isEmpty)
-                          Text(
-                            'No tokens yet.',
-                            style: TextStyle(color: Colors.black.withOpacity(0.5)),
-                          )
-                        else
-                          ..._tokens.map(
-                            (t) => _TokenTile(
-                              token: t,
-                              onChanged: (next) async {
-                                try {
-                                  await _tokenService.updateToken(next);
-                                  await _refreshTokens();
-                                } catch (e) {
-                                  if (!context.mounted) return;
-                                  context.showTopRightSnackBar('Could not update token: $e');
-                                }
-                              },
-                              onDelete: () async {
-                                try {
-                                  await _tokenService.deleteToken(t.id);
-                                  await _refreshTokens();
-                                  if (!context.mounted) return;
-                                  context.showTopRightSnackBar('Token deleted.');
-                                } catch (e) {
-                                  if (!context.mounted) return;
-                                  context.showTopRightSnackBar('Could not delete token: $e');
-                                }
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-                  SaasSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle('QR'),
-                        const SizedBox(height: 10),
-                        Text('QR URL: ${_qrCode?.qrUrl ?? uploadUrl}'),
-                        const SizedBox(height: 6),
-                        Text('Scan count: ${_qrCode?.scanCount ?? 0}'),
-                        const SizedBox(height: 12),
-                        if ((_qrCode?.qrImageUrl ?? '').trim().isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              _qrCode!.qrImageUrl!,
-                              height: 120,
-                              fit: BoxFit.contain,
-                            ),
-                          )
-                        else
-                          Text(
-                            'No custom QR image.',
-                            style: TextStyle(color: Colors.black.withOpacity(0.5)),
-                          ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _uploadCustomQrImage,
-                                icon: const Icon(Icons.upload_rounded, size: 18),
-                                label: const Text('Upload custom QR image'),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: ((_qrCode?.qrImageUrl ?? '').trim().isEmpty)
-                                    ? null
-                                    : _removeCustomQrImage,
-                                icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                                label: const Text('Remove'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 10),
+                  _ImageTile(
+                    title: 'Banner image',
+                    url: album.bannerImageUrl,
+                    onPick: () => _pickAndUploadAlbumImage(kind: 'banner'),
+                    onRemove: album.bannerImageUrl == null
+                        ? null
+                        : () => _removeAlbumImage('banner'),
                   ),
                 ],
               ),
             ),
+
+            const SizedBox(height: 14),
+            SaasSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle('Visibility & access'),
+                  const SizedBox(height: 8),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Protect with access code'),
+                    subtitle: const Text(
+                      'Guests must enter a code to upload and view.',
+                    ),
+                    value: _codeProtected,
+                    onChanged: (v) => setState(() => _codeProtected = v),
+                  ),
+                  if (_codeProtected) ...[
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'New access code (leave blank to keep current)',
+                      child: TextField(
+                        controller: _accessCodeCtrl,
+                        decoration: const InputDecoration(
+                          hintText: 'Min 4 characters',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _LabeledField(
+                      label: 'Access code hint (optional)',
+                      child: TextField(
+                        controller: _accessCodeHintCtrl,
+                        decoration: const InputDecoration(
+                          hintText: 'Ex. “The couple’s initials”…',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            SaasSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle('Guest uploads'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    runSpacing: 8,
+                    spacing: 12,
+                    children: [
+                      _ToggleChip(
+                        label: 'Photos',
+                        selected: _allowPhotos,
+                        onChanged: (v) => setState(() => _allowPhotos = v),
+                      ),
+                      _ToggleChip(
+                        label: 'Videos',
+                        selected: _allowVideos,
+                        onChanged: (v) => setState(() => _allowVideos = v),
+                      ),
+                      _ToggleChip(
+                        label: 'Audio',
+                        selected: _allowAudio,
+                        onChanged: (v) => setState(() => _allowAudio = v),
+                      ),
+                      _ToggleChip(
+                        label: 'Notes',
+                        selected: _allowNotes,
+                        onChanged: (v) => setState(() => _allowNotes = v),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _LabeledField(
+                    label: 'Max file size (MB)',
+                    child: TextField(
+                      controller: _maxFileSizeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: '500'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Max video duration (seconds, optional)',
+                    child: TextField(
+                      controller: _maxVideoDurationCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: 'Ex. 60'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Max audio duration (seconds, optional)',
+                    child: TextField(
+                      controller: _maxAudioDurationCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: 'Ex. 30'),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Require guest name'),
+                    value: _requireGuestName,
+                    onChanged: (v) => setState(() => _requireGuestName = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Require guest email'),
+                    value: _requireGuestEmail,
+                    onChanged: (v) => setState(() => _requireGuestEmail = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Allow guests to view gallery'),
+                    value: _allowGuestViewGallery,
+                    onChanged: (v) =>
+                        setState(() => _allowGuestViewGallery = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Allow guest downloads'),
+                    value: _allowGuestDownloads,
+                    onChanged: (v) => setState(() => _allowGuestDownloads = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show guest names'),
+                    value: _showGuestNames,
+                    onChanged: (v) => setState(() => _showGuestNames = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show upload date'),
+                    value: _showUploadDate,
+                    onChanged: (v) => setState(() => _showUploadDate = v),
+                  ),
+                  const SizedBox(height: 4),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enable live gallery'),
+                    value: _enableLiveGallery,
+                    onChanged: (v) => setState(() => _enableLiveGallery = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enable live slideshow'),
+                    value: _enableLiveSlideshow,
+                    onChanged: (v) => setState(() => _enableLiveSlideshow = v),
+                  ),
+                  const SizedBox(height: 6),
+                  const Divider(height: 24),
+                  const _SectionTitle('Moderation'),
+                  const SizedBox(height: 8),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enable moderation'),
+                    subtitle: const Text(
+                      'When enabled, uploads/notes can be pending approval.',
+                    ),
+                    value: _moderationEnabled,
+                    onChanged: (v) => setState(() => _moderationEnabled = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Auto-approve uploads'),
+                    value: _autoApproveUploads,
+                    onChanged: (v) => setState(() => _autoApproveUploads = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Auto-approve notes'),
+                    value: _autoApproveNotes,
+                    onChanged: (v) => setState(() => _autoApproveNotes = v),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            SaasSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle('Slideshow'),
+                  const SizedBox(height: 6),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enabled'),
+                    value: _slideshowEnabled,
+                    onChanged: (v) => setState(() => _slideshowEnabled = v),
+                  ),
+                  const SizedBox(height: 10),
+                  _LabeledField(
+                    label: 'Interval (seconds)',
+                    child: TextField(
+                      controller: _slideshowIntervalCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: '5'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Transition style',
+                    child: DropdownButtonFormField<String>(
+                      value:
+                          (_slideshowTransitionCtrl.text.trim().isEmpty
+                                  ? 'fade'
+                                  : _slideshowTransitionCtrl.text.trim())
+                              .toLowerCase(),
+                      items: const [
+                        DropdownMenuItem(value: 'fade', child: Text('Fade')),
+                        DropdownMenuItem(value: 'slide', child: Text('Slide')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _slideshowTransitionCtrl.text = value;
+                        setState(() {});
+                      },
+                      decoration: const InputDecoration(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    runSpacing: 8,
+                    spacing: 12,
+                    children: [
+                      _ToggleChip(
+                        label: 'Photos',
+                        selected: _slideshowShowPhotos,
+                        onChanged: (v) =>
+                            setState(() => _slideshowShowPhotos = v),
+                      ),
+                      _ToggleChip(
+                        label: 'Videos',
+                        selected: _slideshowShowVideos,
+                        onChanged: (v) =>
+                            setState(() => _slideshowShowVideos = v),
+                      ),
+                      _ToggleChip(
+                        label: 'Notes',
+                        selected: _slideshowShowNotes,
+                        onChanged: (v) =>
+                            setState(() => _slideshowShowNotes = v),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show guest names'),
+                    value: _slideshowShowGuestNames,
+                    onChanged: (v) =>
+                        setState(() => _slideshowShowGuestNames = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show captions'),
+                    value: _slideshowShowCaptions,
+                    onChanged: (v) =>
+                        setState(() => _slideshowShowCaptions = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Only approved media'),
+                    value: _slideshowOnlyApproved,
+                    onChanged: (v) =>
+                        setState(() => _slideshowOnlyApproved = v),
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Only featured media'),
+                    value: _slideshowOnlyFeatured,
+                    onChanged: (v) =>
+                        setState(() => _slideshowOnlyFeatured = v),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Background color',
+                    child: _ColorFillTile(
+                      value: _slideshowBackgroundFill,
+                      onEdit: () async {
+                        final result = await showColorFillPickerDialog(
+                          context,
+                          title: 'Slideshow background',
+                          initialValue: _slideshowBackgroundFill,
+                        );
+                        if (result == null || !context.mounted) return;
+                        setState(() {
+                          _slideshowBackgroundFill = ColorFillValue.solid(
+                            result.primaryColor,
+                          );
+                          _slideshowBgColorCtrl.text =
+                              _slideshowBackgroundFill.primaryHex;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Text color',
+                    child: _ColorFillTile(
+                      value: _slideshowTextFill,
+                      onEdit: () async {
+                        final result = await showColorFillPickerDialog(
+                          context,
+                          title: 'Slideshow text',
+                          initialValue: _slideshowTextFill,
+                        );
+                        if (result == null || !context.mounted) return;
+                        setState(() {
+                          _slideshowTextFill = ColorFillValue.solid(
+                            result.primaryColor,
+                          );
+                          _slideshowTextColorCtrl.text =
+                              _slideshowTextFill.primaryHex;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    label: 'Background music URL (optional)',
+                    child: TextField(
+                      controller: _slideshowMusicUrlCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'https://...',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _LinkRow(label: 'Guest page', value: guestPageUrl),
+                  _LinkRow(label: 'Upload page', value: uploadUrl),
+                  _LinkRow(label: 'Slideshow', value: slideshowUrl),
+                ],
+              ),
+            ),
+
+            // Share links/tokens + QR removed (requested).
           ],
-        ),
-      ),
+        );
+
+        return Scaffold(
+          backgroundColor: Colors.white,
+          appBar: compact
+              ? AppBar(
+                  title: const Text('Album settings'),
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: () => context.go('/album/${album.id}'),
+                    tooltip: 'Back',
+                  ),
+                  actions: [
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'guest') context.go('/a/${album.slug}');
+                        if (value == 'slideshow') {
+                          context.go('/slideshow/${album.slug}');
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return const [
+                          PopupMenuItem(
+                            value: 'guest',
+                            child: Text('Open guest page'),
+                          ),
+                          PopupMenuItem(
+                            value: 'slideshow',
+                            child: Text('Open slideshow'),
+                          ),
+                        ];
+                      },
+                    ),
+                  ],
+                )
+              : null,
+          body: SafeArea(
+            child: compact
+                ? listView
+                : Row(
+                    children: [
+                      _Sidebar(
+                        onBack: () => context.go('/album/${album.id}'),
+                        onGuestPage: () => context.go('/a/${album.slug}'),
+                        onSlideshow: () =>
+                            context.go('/slideshow/${album.slug}'),
+                      ),
+                      Expanded(child: listView),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1335,46 +1226,6 @@ class _LabeledField extends StatelessWidget {
   }
 }
 
-class _ColorField extends StatelessWidget {
-  const _ColorField({required this.controller});
-
-  final TextEditingController controller;
-
-  Color? _parseColor(String value) {
-    final v = value.trim();
-    if (!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(v)) return null;
-    final hex = v.replaceAll('#', '');
-    return Color(int.parse('FF$hex', radix: 16));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _parseColor(controller.text);
-
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            decoration: const InputDecoration(hintText: '#111827'),
-            onChanged: (_) => (context as Element).markNeedsBuild(),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: color ?? const Color(0xFFF4F5F2),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE5E5EA)),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ColorFillTile extends StatelessWidget {
   const _ColorFillTile({required this.value, required this.onEdit});
 
@@ -1484,22 +1335,34 @@ class _LinkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: TextStyle(color: Colors.black.withOpacity(0.6)),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+
+          final labelWidget = Text(
+            label,
+            style: TextStyle(color: Colors.black.withOpacity(0.6)),
+          );
+          final valueWidget = SelectableText(
+            value,
+            maxLines: compact ? 2 : 1,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelWidget, const SizedBox(height: 4), valueWidget],
+            );
+          }
+
+          return Row(
+            children: [
+              SizedBox(width: 110, child: labelWidget),
+              Expanded(child: valueWidget),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1522,6 +1385,63 @@ class _ImageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasImage = (url ?? '').trim().isNotEmpty;
 
+    final preview = Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasImage
+          ? Image.network(
+              url!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) {
+                return const Center(child: Icon(Icons.broken_image_outlined));
+              },
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  ),
+                );
+              },
+            )
+          : const Center(
+              child: Icon(Icons.image_outlined, color: Color(0xFF6A6A74)),
+            ),
+    );
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(
+          hasImage ? 'Selected' : 'Not set',
+          style: TextStyle(color: Colors.black.withOpacity(0.55)),
+        ),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton(
+          onPressed: onPick,
+          child: Text(hasImage ? 'Replace' : 'Upload'),
+        ),
+        OutlinedButton(onPressed: onRemove, child: const Text('Remove')),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1529,93 +1449,35 @@ class _ImageTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFECECF0)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          if (compact) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                Row(
+                  children: [
+                    preview,
+                    const SizedBox(width: 12),
+                    Expanded(child: titleBlock),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  hasImage ? 'Selected' : 'Not set',
-                  style: TextStyle(color: Colors.black.withOpacity(0.55)),
-                ),
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: actions),
               ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: onPick,
-            child: Text(hasImage ? 'Replace' : 'Upload'),
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton(
-            onPressed: onRemove,
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-  }
-}
+            );
+          }
 
-class _TokenTile extends StatelessWidget {
-  const _TokenTile({
-    required this.token,
-    required this.onChanged,
-    required this.onDelete,
-  });
-
-  final AlbumAccessToken token;
-  final ValueChanged<AlbumAccessToken> onChanged;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8F8FA),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFECECF0)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    token.type,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14.5,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  tooltip: 'Delete',
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            SelectableText(token.token),
-            const SizedBox(height: 8),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Active'),
-              value: token.isActive,
-              onChanged: (v) => onChanged(token.copyWith(isActive: v)),
-            ),
-          ],
-        ),
+          return Row(
+            children: [
+              preview,
+              const SizedBox(width: 12),
+              Expanded(child: titleBlock),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }

@@ -39,97 +39,194 @@ class _DashboardPageState extends State<DashboardPage> {
     context.go('/create');
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Row(
-          children: [
-            _DashboardSidebar(
-              onDashboard: () => context.go('/'),
-              onCreateAlbum: () => context.go('/create'),
-              onBuyAlbum: _buyAlbum,
-              onSignOut: _signOut,
-            ),
-            Expanded(
-              child: FutureBuilder<List<Album>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const LoadingView();
-                  }
+  Widget _buildDashboardContent({required bool compact}) {
+    final left = compact ? 16.0 : 22.0;
+    final right = compact ? 16.0 : 34.0;
+    final top = compact ? 18.0 : 26.0;
 
-                  if (snapshot.hasError) {
-                    return ErrorView(message: snapshot.error.toString());
-                  }
+    return FutureBuilder<List<Album>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const LoadingView();
+        }
 
-                  final albums = snapshot.data ?? [];
+        if (snapshot.hasError) {
+          return ErrorView(message: snapshot.error.toString());
+        }
 
-                  return CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(22, 26, 34, 0),
-                          child: _DashboardHeader(
-                            albums: albums,
-                            onCreateAlbum: () => context.go('/create'),
-                            onBuyAlbum: _buyAlbum,
-                          ),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(22, 22, 34, 0),
-                          child: _DashboardMetrics(albums: albums),
-                        ),
-                      ),
-                      if (albums.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: _EmptyAlbumsCard(onBuyAlbum: _buyAlbum),
-                          ),
-                        )
-                      else ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(22, 30, 34, 12),
-                            child: _SectionTitle(
-                              subtitle:
-                                  'Open an album to manage uploads, QR access and guest memories.',
-                            ),
-                          ),
-                        ),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(22, 0, 34, 34),
-                          sliver: SliverGrid.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithMaxCrossAxisExtent(
-                                  maxCrossAxisExtent: 380,
-                                  mainAxisExtent: 222,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                ),
-                            itemCount: albums.length,
-                            itemBuilder: (context, index) {
-                              final album = albums[index];
+        final albums = snapshot.data ?? [];
 
-                              return _AlbumCard(
-                                album: album,
-                                onTap: () => context.go('/album/${album.id}'),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ],
-                  );
-                },
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(left, top, right, 0),
+                child: _DashboardHeader(
+                  albums: albums,
+                  onCreateAlbum: () => context.go('/create'),
+                  onBuyAlbum: _buyAlbum,
+                ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(left, 18, right, 0),
+                child: _DashboardMetrics(albums: albums),
+              ),
+            ),
+            if (albums.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: _EmptyAlbumsCard(onBuyAlbum: _buyAlbum),
+                ),
+              )
+            else ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(left, 24, right, 12),
+                  child: _SectionTitle(
+                    subtitle:
+                        'Open an album to manage uploads, QR access and guest memories.',
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(left, 0, right, 24),
+                sliver: SliverGrid.builder(
+                  gridDelegate:
+                      const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 380,
+                        mainAxisExtent: 222,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                  itemCount: albums.length,
+                  itemBuilder: (context, index) {
+                    final album = albums[index];
+
+                    return _AlbumCard(
+                      album: album,
+                      onTap: () => context.go('/album/${album.id}'),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
-        ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 900;
+
+        return Scaffold(
+          backgroundColor: Colors.white,
+          appBar: compact ? AppBar(title: const Text('Dashboard')) : null,
+          drawer: compact
+              ? Drawer(
+                  child: _DashboardMobileDrawer(
+                    onDashboard: () => context.go('/'),
+                    onCreateAlbum: () => context.go('/create'),
+                    onBuyAlbum: _buyAlbum,
+                    onSignOut: _signOut,
+                  ),
+                )
+              : null,
+          body: SafeArea(
+            child: compact
+                ? _buildDashboardContent(compact: true)
+                : Row(
+                    children: [
+                      _DashboardSidebar(
+                        onDashboard: () => context.go('/'),
+                        onCreateAlbum: () => context.go('/create'),
+                        onBuyAlbum: _buyAlbum,
+                        onSignOut: _signOut,
+                      ),
+                      Expanded(child: _buildDashboardContent(compact: false)),
+                    ],
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DashboardMobileDrawer extends StatelessWidget {
+  const _DashboardMobileDrawer({
+    required this.onDashboard,
+    required this.onCreateAlbum,
+    required this.onBuyAlbum,
+    required this.onSignOut,
+  });
+
+  final VoidCallback onDashboard;
+  final VoidCallback onCreateAlbum;
+  final VoidCallback onBuyAlbum;
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 18, 18, 10),
+            child: Row(
+              children: [
+                LogoMark(size: 44),
+                SizedBox(width: 12),
+                Text(
+                  'MyPhotoQR',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.dashboard_rounded),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.of(context).pop();
+              onDashboard();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_rounded),
+            title: const Text('Create album'),
+            onTap: () {
+              Navigator.of(context).pop();
+              onCreateAlbum();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.shopping_bag_outlined),
+            title: const Text('Buy album'),
+            onTap: () {
+              Navigator.of(context).pop();
+              onBuyAlbum();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded),
+            title: const Text('Sign out'),
+            onTap: () async {
+              Navigator.of(context).pop();
+              await onSignOut();
+            },
+          ),
+        ],
       ),
     );
   }

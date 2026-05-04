@@ -23,96 +23,91 @@ EventThemeCopy eventThemeCopy(String eventType) {
     case 'wedding':
       return const EventThemeCopy(
         emoji: '💍',
-        label: 'Boda',
-        guestTitle: 'Recuerdos de boda',
+        label: 'Wedding',
+        guestTitle: 'Wedding memories',
         guestDescription:
-            'Comparte fotos, videos y mensajes para guardar cada momento de esta celebración.',
-        uploadTitle: 'Sube un recuerdo de la boda',
-        uploadDescription:
-            'Elige fotos, videos o una nota especial para los novios.',
+            'Share photos, videos, and messages to save every moment of this celebration.',
+        uploadTitle: 'Upload a wedding memory',
+        uploadDescription: 'Add photos, videos, or a special note for the couple.',
       );
     case 'birthday':
       return const EventThemeCopy(
         emoji: '🎂',
-        label: 'Cumpleaños',
-        guestTitle: 'Recuerdos de cumpleaños',
-        guestDescription:
-            'Guarda los momentos, risas y mensajes de este cumpleaños.',
-        uploadTitle: 'Sube un recuerdo del cumpleaños',
-        uploadDescription:
-            'Agrega fotos, videos o una nota para quien cumple años.',
+        label: 'Birthday',
+        guestTitle: 'Birthday memories',
+        guestDescription: 'Save the moments, laughs, and messages from this birthday.',
+        uploadTitle: 'Upload a birthday memory',
+        uploadDescription: 'Add photos, videos, or a note for the birthday person.',
       );
     case 'graduation':
       return const EventThemeCopy(
         emoji: '🎓',
-        label: 'Graduación',
-        guestTitle: 'Recuerdos de graduación',
+        label: 'Graduation',
+        guestTitle: 'Graduation memories',
         guestDescription:
-            'Reúne fotos, videos y mensajes de este logro importante.',
-        uploadTitle: 'Sube un recuerdo de la graduación',
-        uploadDescription: 'Comparte un momento, felicitación o video del día.',
+            'Collect photos, videos, and messages from this important milestone.',
+        uploadTitle: 'Upload a graduation memory',
+        uploadDescription: 'Share a moment, a message, or a video from the day.',
       );
     case 'anniversary':
       return const EventThemeCopy(
         emoji: '❤️',
-        label: 'Aniversario',
-        guestTitle: 'Recuerdos de aniversario',
+        label: 'Anniversary',
+        guestTitle: 'Anniversary memories',
         guestDescription:
-            'Celebra la historia con fotos, videos y mensajes memorables.',
-        uploadTitle: 'Sube un recuerdo del aniversario',
-        uploadDescription: 'Comparte una foto, video o nota para esta fecha.',
+            'Celebrate the story with photos, videos, and meaningful messages.',
+        uploadTitle: 'Upload an anniversary memory',
+        uploadDescription: 'Share a photo, video, or note for this date.',
       );
     case 'baby_shower':
       return const EventThemeCopy(
         emoji: '🍼',
         label: 'Baby shower',
-        guestTitle: 'Recuerdos del baby shower',
+        guestTitle: 'Baby shower memories',
         guestDescription:
-            'Guarda mensajes, fotos y videos para dar la bienvenida al bebé.',
-        uploadTitle: 'Sube un recuerdo del baby shower',
-        uploadDescription:
-            'Agrega fotos, videos o una nota llena de buenos deseos.',
+            'Save messages, photos, and videos to welcome the baby.',
+        uploadTitle: 'Upload a baby shower memory',
+        uploadDescription: 'Add photos, videos, or a heartfelt note.',
       );
     case 'corporate':
       return const EventThemeCopy(
         emoji: '🏢',
-        label: 'Evento',
-        guestTitle: 'Momentos del evento',
+        label: 'Event',
+        guestTitle: 'Event moments',
         guestDescription:
-            'Reúne fotos, videos y notas de los asistentes en un solo lugar.',
-        uploadTitle: 'Sube contenido del evento',
-        uploadDescription: 'Comparte fotos, videos o una nota del momento.',
+            'Collect photos, videos, and notes from attendees in one place.',
+        uploadTitle: 'Upload event content',
+        uploadDescription: 'Share photos, videos, or a note from the moment.',
       );
     case 'party':
       return const EventThemeCopy(
         emoji: '🎉',
-        label: 'Fiesta',
-        guestTitle: 'Recuerdos de la fiesta',
+        label: 'Party',
+        guestTitle: 'Party memories',
         guestDescription:
-            'Comparte los mejores momentos, videos y mensajes de la fiesta.',
-        uploadTitle: 'Sube un recuerdo de la fiesta',
-        uploadDescription: 'Agrega fotos, videos o una nota para el álbum.',
+            'Share the best moments, videos, and messages from the party.',
+        uploadTitle: 'Upload a party memory',
+        uploadDescription: 'Add photos, videos, or a note for the album.',
       );
     case 'travel':
       return const EventThemeCopy(
         emoji: '✈️',
-        label: 'Viaje',
-        guestTitle: 'Recuerdos del viaje',
+        label: 'Travel',
+        guestTitle: 'Travel memories',
         guestDescription:
-            'Guarda paisajes, momentos y notas de esta experiencia.',
-        uploadTitle: 'Sube un recuerdo del viaje',
-        uploadDescription: 'Comparte fotos, videos o una nota de la aventura.',
+            'Save landscapes, moments, and notes from this experience.',
+        uploadTitle: 'Upload a travel memory',
+        uploadDescription: 'Share photos, videos, or a note from the adventure.',
       );
     default:
       return const EventThemeCopy(
         emoji: '📸',
-        label: 'Álbum',
-        guestTitle: 'Recuerdos del álbum',
+        label: 'Album',
+        guestTitle: 'Album memories',
         guestDescription:
-            'Comparte fotos, videos y notas para conservar este momento.',
-        uploadTitle: 'Sube tus recuerdos',
-        uploadDescription:
-            'Elige fotos, videos o una nota para aportar al álbum.',
+            'Share photos, videos, and notes to preserve this moment.',
+        uploadTitle: 'Upload your memories',
+        uploadDescription: 'Add photos, videos, or a note to the album.',
       );
   }
 }

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mime/mime.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/album.dart';
 import '../../models/album_settings.dart';
@@ -10,8 +11,8 @@ import '../../services/album_settings_service.dart';
 import '../../services/upload_service.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/ui/event_theme.dart';
-import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/ui/color_fill.dart';
+import '../../shared/ui/app_snackbars.dart';
 import '../../shared/widgets/loading_view.dart';
 import '../../shared/widgets/logo_mark.dart';
 import '../../shared/widgets/saas_surface.dart';
@@ -248,16 +249,32 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
       }
 
       if (_kind == UploadKind.note) {
+        final noteStatus = (_moderationEnabled && !_autoApproveNotes)
+            ? 'pending'
+            : 'approved';
         await _uploadService.createNote(
           albumId: album.id,
           guestId: guest['id'],
           message: note,
-          status: (_moderationEnabled && !_autoApproveNotes)
-              ? 'pending'
-              : 'approved',
+          status: noteStatus,
         );
       }
 
+      if (!mounted) return;
+
+      final pending =
+          _moderationEnabled &&
+          ((_kind == UploadKind.media && !_autoApproveUploads) ||
+              (_kind == UploadKind.note && !_autoApproveNotes));
+
+      context.showTopRightSnackBar(
+        pending
+            ? 'Done! Your submission is pending approval.'
+            : 'Done! Your submission is published.',
+        type: ToastType.success,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (mounted) context.go('/a/${album.slug}');
     } catch (e) {
       _showError(e);
@@ -293,11 +310,45 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
   }
 
   void _showError(Object e) {
-    showAppMessageDialog(
-      context,
-      title: 'Upload failed',
-      message: e.toString(),
+    context.showTopRightSnackBar(
+      _friendlyErrorMessage(e),
+      type: ToastType.error,
     );
+  }
+
+  String _friendlyErrorMessage(Object e) {
+    if (e is PostgrestException) {
+      if (e.code == '42501' || e.message.contains('row-level security')) {
+        return 'Uploads are currently unavailable. Please contact the album host.';
+      }
+      if (e.message.trim().isNotEmpty) return e.message.trim();
+    }
+
+    final raw = e.toString();
+    if (raw.contains('42501') || raw.contains('row-level security')) {
+      return 'Uploads are currently unavailable. Please contact the album host.';
+    }
+    if (raw.contains('ClientException: Load failed')) {
+      return 'Network request failed. Please check your connection and try again.';
+    }
+
+    // Avoid leaking internal URLs and noisy exception types to guests.
+    var simplified = raw.trim();
+    simplified = simplified.replaceFirst('ClientException: ', '');
+    simplified = simplified.replaceFirst('ClientException:', '');
+
+    if (simplified.startsWith('PostgrestException(')) {
+      simplified = simplified.replaceFirst(
+        RegExp(r'^PostgrestException\(message:\s*'),
+        '',
+      );
+      final codeIndex = simplified.indexOf(', code:');
+      if (codeIndex != -1) simplified = simplified.substring(0, codeIndex);
+      simplified = simplified.replaceAll(RegExp(r'\)$'), '');
+    }
+
+    simplified = simplified.trim();
+    return simplified.isEmpty ? 'Upload failed. Please try again.' : simplified;
   }
 
   @override
@@ -340,6 +391,8 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
                   padding: const EdgeInsets.all(20),
                   child: SaasSurface(
                     padding: const EdgeInsets.all(22),
+                    color: Colors.white.withOpacity(0.92),
+                    borderColor: Colors.white.withOpacity(0.65),
                     child: requiresCode
                         ? _codeForm(album)
                         : _uploadForm(album, settings),
@@ -456,7 +509,7 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
                 controller: _nameCtrl,
                 enabled: !_loading,
                 decoration: InputDecoration(
-                  labelText: _requireGuestName ? 'Your name (required)' : 'Your name',
+                  labelText: _requireGuestName ? 'Name *' : 'Name (optional)',
                 ),
               ),
               TextField(
@@ -464,7 +517,9 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
                 enabled: !_loading,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  labelText: _requireGuestEmail ? 'Email (required)' : 'Email optional',
+                  labelText: _requireGuestEmail
+                      ? 'Email *'
+                      : 'Email (optional)',
                 ),
               ),
             ];
@@ -561,10 +616,12 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
                     ? null
                     : (value) {
                         final nextAudio = value;
-                        final nextPhotos =
-                            nextAudio ? _allowPhotos : (_allowPhotos || _allowVideos);
-                        final nextVideos =
-                            nextAudio ? _allowVideos : (_allowVideos || _allowPhotos);
+                        final nextPhotos = nextAudio
+                            ? _allowPhotos
+                            : (_allowPhotos || _allowVideos);
+                        final nextVideos = nextAudio
+                            ? _allowVideos
+                            : (_allowVideos || _allowPhotos);
 
                         setState(() {
                           _allowAudio = nextAudio;
@@ -598,10 +655,10 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
             label: Text(
               _files.isEmpty
                   ? _allowAudio && !_allowPhotos && !_allowVideos
-                      ? 'Select audio'
-                      : _allowAudio
-                          ? 'Select photos, videos or audio'
-                          : 'Select photos or videos'
+                        ? 'Select audio'
+                        : _allowAudio
+                        ? 'Select photos, videos or audio'
+                        : 'Select photos or videos'
                   : '${_files.length} file(s) selected',
             ),
           ),
@@ -645,11 +702,24 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
           ),
         ],
         const SizedBox(height: 16),
+        if (!album.uploadEnabled) ...[
+          Text(
+            'Uploads are disabled for this album.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         SizedBox(
           width: double.infinity,
           height: 48,
           child: FilledButton.icon(
-            onPressed: _loading ? null : () => _submit(album),
+            onPressed: (_loading || !album.uploadEnabled)
+                ? null
+                : () => _submit(album),
             icon: const Icon(Icons.cloud_upload_outlined, size: 18),
             label: Text(_loading ? 'Uploading...' : 'Upload'),
           ),

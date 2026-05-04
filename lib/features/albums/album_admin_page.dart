@@ -38,8 +38,9 @@ class AlbumAdminPage extends StatefulWidget {
 class _AlbumAdminPageState extends State<AlbumAdminPage> {
   final _albumService = AlbumService();
   final _mediaRepository = _AdminMediaRepository();
-  final _memoriesManagerKey = GlobalKey<_AdminMemoriesManagerState>();
-  final _qrKey = GlobalKey();
+  GlobalKey<_AdminMemoriesManagerState> _memoriesManagerKey =
+      GlobalKey<_AdminMemoriesManagerState>();
+  GlobalKey _qrKey = GlobalKey();
 
   late Future<Album> _albumFuture;
   late Future<List<Album>> _albumsFuture;
@@ -51,6 +52,19 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant AlbumAdminPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.albumId != widget.albumId) {
+      _memoriesManagerKey = GlobalKey<_AdminMemoriesManagerState>();
+      _qrKey = GlobalKey();
+      _mediaBusy = false;
+      _qrBusy = false;
+      setState(_load);
+    }
   }
 
   void _load() {
@@ -87,6 +101,7 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
     if (invalidFiles.isNotEmpty && mounted) {
       _showSnack(
         'Only image and video files are allowed. Rejected: ${invalidFiles.join(', ')}',
+        type: ToastType.error,
       );
     }
 
@@ -110,12 +125,13 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
         validFiles.length == 1
             ? 'Media uploaded successfully.'
             : '${validFiles.length} files uploaded successfully.',
+        type: ToastType.success,
       );
 
       _reload();
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Upload failed: $e');
+      _showSnack('Upload failed: $e', type: ToastType.error);
     } finally {
       if (mounted) setState(() => _mediaBusy = false);
     }
@@ -166,25 +182,28 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
     if (value.isEmpty || value == album.title) return;
 
     if (value.length > 150) {
-      _showSnack('Album name must be 150 characters or less.');
+      _showSnack(
+        'Album name must be 150 characters or less.',
+        type: ToastType.error,
+      );
       return;
     }
 
     try {
       await _albumService.updateAlbum(albumId: album.id, patch: {'title': value});
       if (!mounted) return;
-      _showSnack('Album name updated.');
+      _showSnack('Album name updated.', type: ToastType.success);
       _reload();
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Could not update album name: $e');
+      _showSnack('Could not update album name: $e', type: ToastType.error);
     }
   }
 
   Future<void> _copyLink(String link) async {
     await Clipboard.setData(ClipboardData(text: link));
     if (!mounted) return;
-    _showSnack('Upload link copied.');
+    _showSnack('Upload link copied.', type: ToastType.success);
   }
 
   Future<void> _downloadQrPng(Album album) async {
@@ -213,10 +232,10 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
       _downloadBytesAsFile(bytes, fileName, 'image/png');
 
       if (!mounted) return;
-      _showSnack('QR downloaded.');
+      _showSnack('QR downloaded.', type: ToastType.success);
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Could not download QR: $e');
+      _showSnack('Could not download QR: $e', type: ToastType.error);
     } finally {
       if (mounted) setState(() => _qrBusy = false);
     }
@@ -237,8 +256,8 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
     return value.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
   }
 
-  void _showSnack(String message) {
-    context.showTopRightSnackBar(message);
+  void _showSnack(String message, {ToastType type = ToastType.info}) {
+    context.showTopRightSnackBar(message, type: type);
   }
 
   @override
@@ -259,148 +278,159 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
           final album = snapshot.data!;
           final uploadUrl = _albumService.publicUploadUrl(album.slug);
 
-          return SafeArea(
-            child: Row(
-              children: [
-                _AlbumSidebar(
-                  onDashboard: () => context.go('/'),
-                  onPublicAlbum: () => context.go('/a/${album.slug}'),
-                  onSlideshow: () => context.go('/slideshow/${album.slug}'),
-                  onSettings: () => context.go('/album/${album.id}/settings'),
-                ),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 24, 0),
-                          child: FutureBuilder<List<Album>>(
-                            future: _albumsFuture,
-                            builder: (context, albumsSnapshot) {
-                              final albums =
-                                  albumsSnapshot.data ?? const <Album>[];
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final compactOuter = constraints.maxWidth < 900;
+              final padL = compactOuter ? 16.0 : 20.0;
+              final padR = compactOuter ? 16.0 : 24.0;
 
-                              return _AdminTopBar(
-                                album: album,
-                                albums: albums,
-                                onAlbumChanged: (nextAlbumId) {
-                                  if (nextAlbumId == null ||
-                                      nextAlbumId == album.id) {
-                                    return;
-                                  }
+              final scrollView = CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(padL, 20, padR, 0),
+                      child: FutureBuilder<List<Album>>(
+                        future: _albumsFuture,
+                        builder: (context, albumsSnapshot) {
+                          final albums = albumsSnapshot.data ?? const <Album>[];
 
-                                  context.go('/album/$nextAlbumId');
-                                },
-                                onDashboard: () => context.go('/'),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 18, 24, 0),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final compact = constraints.maxWidth < 980;
-
-                              if (compact) {
-                                return Column(
-                                  children: [
-                                    _AlbumMainPanel(
-                                      album: album,
-                                      mediaBusy: _mediaBusy,
-                                      onAddMedia: () =>
-                                          _pickAndUploadMedia(album),
-                                      onEditTitle: () => _editAlbumTitle(album),
-                                      onOpenSettings: () =>
-                                          context.go('/album/${album.id}/settings'),
-                                      onCopyLink: () => _copyLink(uploadUrl),
-                                      onShareLink: () => Share.share(uploadUrl),
-                                      onOpenSlideshow: () {
-                                        context.go('/slideshow/${album.slug}');
-                                      },
-                                    ),
-                                    const SizedBox(height: 18),
-                                    _QrSharePanel(
-                                      qrKey: _qrKey,
-                                      uploadUrl: uploadUrl,
-                                      qrBusy: _qrBusy,
-                                      onCopyLink: () => _copyLink(uploadUrl),
-                                      onShareLink: () => Share.share(uploadUrl),
-                                      onDownloadQr: () => _downloadQrPng(album),
-                                      onOpenGuestPage: () {
-                                        context.go('/a/${album.slug}');
-                                      },
-                                    ),
-                                  ],
-                                );
+                          return _AdminTopBar(
+                            album: album,
+                            albums: albums,
+                            onAlbumChanged: (nextAlbumId) {
+                              if (nextAlbumId == null || nextAlbumId == album.id) {
+                                return;
                               }
 
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: _AlbumMainPanel(
-                                      album: album,
-                                      mediaBusy: _mediaBusy,
-                                      onAddMedia: () =>
-                                          _pickAndUploadMedia(album),
-                                      onEditTitle: () => _editAlbumTitle(album),
-                                      onOpenSettings: () =>
-                                          context.go('/album/${album.id}/settings'),
-                                      onCopyLink: () => _copyLink(uploadUrl),
-                                      onShareLink: () => Share.share(uploadUrl),
-                                      onOpenSlideshow: () {
-                                        context.go('/slideshow/${album.slug}');
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 18),
-                                  SizedBox(
-                                    width: 308,
-                                    child: _QrSharePanel(
-                                      qrKey: _qrKey,
-                                      uploadUrl: uploadUrl,
-                                      qrBusy: _qrBusy,
-                                      onCopyLink: () => _copyLink(uploadUrl),
-                                      onShareLink: () => Share.share(uploadUrl),
-                                      onDownloadQr: () => _downloadQrPng(album),
-                                      onOpenGuestPage: () {
-                                        context.go('/a/${album.slug}');
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              );
+                              context.go('/album/$nextAlbumId');
                             },
-                          ),
-                        ),
+                            onDashboard: () => context.go('/'),
+                          );
+                        },
                       ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 26, 24, 12),
-                          child: _ContentHeader(
-                            subtitle:
-                                'Review and manage photos, videos, audios, and notes from this album.',
-                          ),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 24, 32),
-                          child: _AdminMemoriesManager(
-                            key: _memoriesManagerKey,
-                            albumId: album.id,
-                            onChanged: _reload,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(padL, 18, padR, 0),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 980;
+
+                          if (compact) {
+                            return Column(
+                              children: [
+                                _AlbumMainPanel(
+                                  album: album,
+                                  mediaBusy: _mediaBusy,
+                                  onAddMedia: () => _pickAndUploadMedia(album),
+                                  onEditTitle: () => _editAlbumTitle(album),
+                                  onOpenSettings: () => context.go(
+                                    '/album/${album.id}/settings',
+                                  ),
+                                  onCopyLink: () => _copyLink(uploadUrl),
+                                  onShareLink: () => Share.share(uploadUrl),
+                                  onOpenSlideshow: () {
+                                    context.go('/slideshow/${album.slug}');
+                                  },
+                                ),
+                                const SizedBox(height: 18),
+                                _QrSharePanel(
+                                  qrKey: _qrKey,
+                                  uploadUrl: uploadUrl,
+                                  qrBusy: _qrBusy,
+                                  onCopyLink: () => _copyLink(uploadUrl),
+                                  onShareLink: () => Share.share(uploadUrl),
+                                  onDownloadQr: () => _downloadQrPng(album),
+                                  onOpenGuestPage: () {
+                                    context.go('/a/${album.slug}');
+                                  },
+                                ),
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _AlbumMainPanel(
+                                  album: album,
+                                  mediaBusy: _mediaBusy,
+                                  onAddMedia: () => _pickAndUploadMedia(album),
+                                  onEditTitle: () => _editAlbumTitle(album),
+                                  onOpenSettings: () => context.go(
+                                    '/album/${album.id}/settings',
+                                  ),
+                                  onCopyLink: () => _copyLink(uploadUrl),
+                                  onShareLink: () => Share.share(uploadUrl),
+                                  onOpenSlideshow: () {
+                                    context.go('/slideshow/${album.slug}');
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 18),
+                              SizedBox(
+                                width: 308,
+                                child: _QrSharePanel(
+                                  qrKey: _qrKey,
+                                  uploadUrl: uploadUrl,
+                                  qrBusy: _qrBusy,
+                                  onCopyLink: () => _copyLink(uploadUrl),
+                                  onShareLink: () => Share.share(uploadUrl),
+                                  onDownloadQr: () => _downloadQrPng(album),
+                                  onOpenGuestPage: () {
+                                    context.go('/a/${album.slug}');
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(padL, 26, padR, 12),
+                      child: _ContentHeader(
+                        subtitle:
+                            'Review and manage photos, videos, audios, and notes from this album.',
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(padL, 0, padR, 32),
+                      child: _AdminMemoriesManager(
+                        key: _memoriesManagerKey,
+                        albumId: album.id,
+                        onChanged: _reload,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+
+              return SafeArea(
+                child: compactOuter
+                    ? scrollView
+                    : Row(
+                        children: [
+                          _AlbumSidebar(
+                            onDashboard: () => context.go('/'),
+                            onPublicAlbum: () => context.go('/a/${album.slug}'),
+                            onSlideshow: () =>
+                                context.go('/slideshow/${album.slug}'),
+                            onSettings: () => context.go(
+                              '/album/${album.id}/settings',
+                            ),
+                          ),
+                          Expanded(child: scrollView),
+                        ],
+                      ),
+              );
+            },
           );
         },
       ),
@@ -1187,12 +1217,18 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       await _mediaRepository.deleteMedia(item);
       await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
-      context.showTopRightSnackBar('Media deleted successfully.');
+      context.showTopRightSnackBar(
+        'Media deleted successfully.',
+        type: ToastType.success,
+      );
       widget.onChanged();
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not delete media: $e');
+      context.showTopRightSnackBar(
+        'Could not delete media: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -1211,12 +1247,15 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       );
       await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
-      context.showTopRightSnackBar('Media approved.');
+      context.showTopRightSnackBar('Media approved.', type: ToastType.success);
       widget.onChanged();
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not approve media: $e');
+      context.showTopRightSnackBar(
+        'Could not approve media: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1236,7 +1275,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not update media: $e');
+      context.showTopRightSnackBar(
+        'Could not update media: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1254,7 +1296,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not update media: $e');
+      context.showTopRightSnackBar(
+        'Could not update media: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1275,12 +1320,15 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       await _notesRepository.deleteNote(note.id);
       await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
-      context.showTopRightSnackBar('Note deleted.');
+      context.showTopRightSnackBar('Note deleted.', type: ToastType.success);
       widget.onChanged();
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not delete note: $e');
+      context.showTopRightSnackBar(
+        'Could not delete note: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -1299,12 +1347,15 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       );
       await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
-      context.showTopRightSnackBar('Note approved.');
+      context.showTopRightSnackBar('Note approved.', type: ToastType.success);
       widget.onChanged();
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not approve note: $e');
+      context.showTopRightSnackBar(
+        'Could not approve note: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1324,7 +1375,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not update note: $e');
+      context.showTopRightSnackBar(
+        'Could not update note: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1342,7 +1396,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
       reload();
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar('Could not update note: $e');
+      context.showTopRightSnackBar(
+        'Could not update note: $e',
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -2042,14 +2099,19 @@ class _AdminMediaCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    if (onApprove != null)
+                    if (onApprove != null) ...[
+                      _StatusPillSmall(
+                        text: item.status.toUpperCase(),
+                        color: const Color(0xFFB42318),
+                      ),
+                      const SizedBox(width: 8),
                       _MiniIconButton(
                         tooltip: 'Approve',
                         icon: Icons.check_rounded,
                         color: const Color(0xFF12B76A),
                         onTap: busy ? null : onApprove,
-                      )
-                    else
+                      ),
+                    ] else
                       _StatusPillSmall(
                         text: item.status.toUpperCase(),
                         color: const Color(0xFF12B76A),

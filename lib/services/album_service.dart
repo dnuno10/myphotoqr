@@ -19,7 +19,7 @@ class AlbumService {
 
   Future<Map<String, dynamic>> getOrCreateCurrentUser() async {
     final authUser = supabase.auth.currentUser;
-    if (authUser == null) throw Exception('No autenticado');
+    if (authUser == null) throw Exception('Not authenticated.');
 
     final existing = await supabase
         .from('users')
@@ -85,7 +85,7 @@ class AlbumService {
           'visibility': codeProtected ? 'code_protected' : 'public',
           'guest_access_code_enabled': codeProtected,
           'guest_access_code_hash': codeHash,
-          'guest_access_code_hint': codeProtected ? 'Código requerido' : null,
+          'guest_access_code_hint': codeProtected ? 'Code required' : null,
           'status': 'active',
           'upload_enabled': true,
           'gallery_enabled': true,
@@ -107,10 +107,7 @@ class AlbumService {
   }) async {
     final updated = await supabase
         .from('albums')
-        .update({
-          ...patch,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
+        .update({...patch, 'updated_at': DateTime.now().toIso8601String()})
         .eq('id', albumId)
         .select()
         .single();

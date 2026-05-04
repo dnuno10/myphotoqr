@@ -69,7 +69,7 @@ class GalleryGrid extends StatelessWidget {
                 child: SaasSurface(
                   constraints: const BoxConstraints(maxWidth: 520),
                   padding: const EdgeInsets.all(18),
-                  child: const Text('Aún no hay recuerdos en este álbum.'),
+                  child: const Text('No memories yet in this album.'),
                 ),
               );
             }
@@ -163,6 +163,47 @@ class _MediaCard extends StatelessWidget {
                     child: CachedNetworkImage(
                       imageUrl: media.thumbnailUrl ?? media.fileUrl,
                       fit: BoxFit.contain,
+                      errorWidget: (context, url, error) {
+                        final lower = url.toLowerCase();
+                        final isHeic =
+                            lower.contains('.heic') || lower.contains('.heif');
+
+                        return Container(
+                          color: const Color(0xFFF8F8FA),
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.image_not_supported_outlined,
+                                size: 44,
+                                color: Color(0xFF6A6A74),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                isHeic
+                                    ? 'HEIC is not supported in this browser.'
+                                    : 'Could not load the image.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black.withOpacity(0.55),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  final uri = Uri.tryParse(url);
+                                  if (uri == null) return;
+                                  launchUrl(uri, mode: LaunchMode.platformDefault);
+                                },
+                                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                                label: Text(isHeic ? 'Open/Download' : 'Open'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   )
                 else
@@ -418,6 +459,50 @@ class _MediaViewerDialogState extends State<_MediaViewerDialog> {
                         child: CachedNetworkImage(
                           imageUrl: widget.media.fileUrl,
                           fit: BoxFit.contain,
+                          errorWidget: (context, url, error) {
+                            final lower = url.toLowerCase();
+                            final isHeic =
+                                lower.contains('.heic') || lower.contains('.heif');
+
+                            return Container(
+                              color: Colors.black,
+                              padding: const EdgeInsets.all(18),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.image_not_supported_outlined,
+                                    color: Colors.white,
+                                    size: 54,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    isHeic
+                                        ? 'HEIC is not supported in this browser.'
+                                        : 'Could not load the image.',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  FilledButton.icon(
+                                    onPressed: () {
+                                      final uri = Uri.tryParse(url);
+                                      if (uri == null) return;
+                                      launchUrl(uri, mode: LaunchMode.platformDefault);
+                                    },
+                                    icon: const Icon(
+                                      Icons.open_in_new_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Open/Download'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
                     );

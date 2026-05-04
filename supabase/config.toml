@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.stripe-checkout-myphotoqr]
 verify_jwt = false
+
+[functions.album-export-myphotoqr]
+verify_jwt = false

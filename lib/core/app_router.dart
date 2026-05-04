@@ -17,7 +17,6 @@ import 'app_theme.dart';
 
 class AppRouter {
   static final router = GoRouter(
-    initialLocation: '/',
     refreshListenable: GoRouterRefreshStream(supabase.auth.onAuthStateChange),
     redirect: (context, state) {
       final session = supabase.auth.currentSession;

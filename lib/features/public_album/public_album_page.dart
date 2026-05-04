@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/album.dart';
 import '../../models/album_settings.dart';
 import '../../services/album_service.dart';
 import '../../services/album_settings_service.dart';
+import '../../services/album_export_service.dart';
+import '../../services/upload_service.dart';
+import '../../shared/ui/app_snackbars.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/ui/event_theme.dart';
 import '../../shared/widgets/loading_view.dart';
@@ -25,8 +29,11 @@ class PublicAlbumPage extends StatefulWidget {
 class _PublicAlbumPageState extends State<PublicAlbumPage> {
   final _service = AlbumService();
   final _albumSettingsService = AlbumSettingsService();
+  final _exportService = AlbumExportService();
+  final _uploadService = UploadService();
   late Future<_PublicAlbumBundle> _future;
   GalleryFilter _filter = GalleryFilter.photos;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -40,6 +47,81 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
         await _albumSettingsService.get(album.id) ??
         AlbumSettings.defaults(album.id);
     return _PublicAlbumBundle(album: album, settings: settings);
+  }
+
+  Future<String?> _askForAccessCode() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Access code required'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Enter access code'),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => Navigator.of(context).pop(ctrl.text.trim()),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+                    child: const Text('Continue'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+    ctrl.dispose();
+    final value = (result ?? '').trim();
+    return value.isEmpty ? null : value;
+  }
+
+  Future<void> _exportAlbum(Album album, AlbumSettings settings) async {
+    if (_exporting) return;
+    if (!settings.allowGuestDownloads) return;
+
+    setState(() => _exporting = true);
+
+    try {
+      String? guestCode;
+      if (album.guestAccessCodeEnabled) {
+        guestCode = await _askForAccessCode();
+        if (guestCode == null) return;
+
+        final ok = await _uploadService.verifyAccessCode(
+          albumId: album.id,
+          code: guestCode,
+        );
+        if (!ok) throw Exception('Incorrect access code.');
+      }
+
+      final uri = await _exportService.exportAlbumZip(
+        albumId: album.id,
+        guestCode: guestCode,
+      );
+
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar('Could not export album: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   bool _isFilterAllowed(GalleryFilter filter, AlbumSettings settings) {
@@ -116,6 +198,31 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
                                     children: [
                                       const LogoMark(size: 44),
                                       const Spacer(),
+                                      if (settings.allowGuestDownloads)
+                                        Padding(
+                                          padding: const EdgeInsets.only(right: 10),
+                                          child: SizedBox(
+                                            width: 46,
+                                            height: 46,
+                                            child: OutlinedButton(
+                                              onPressed: _exporting
+                                                  ? null
+                                                  : () => _exportAlbum(album, settings),
+                                              child: _exporting
+                                                  ? const SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2.2,
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.download_outlined,
+                                                      size: 20,
+                                                    ),
+                                            ),
+                                          ),
+                                        ),
                                       SizedBox(
                                         width: 118,
                                         height: 46,
@@ -150,6 +257,31 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 14),
+                                if (settings.allowGuestDownloads) ...[
+                                  SizedBox(
+                                    width: 160,
+                                    height: 46,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _exporting
+                                          ? null
+                                          : () => _exportAlbum(album, settings),
+                                      icon: _exporting
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.download_outlined,
+                                              size: 18,
+                                            ),
+                                      label: Text(_exporting ? 'Preparing…' : 'Download'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
                                 SizedBox(
                                   width: 178,
                                   height: 46,

@@ -41,6 +41,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
   final _qrCodeService = QrCodeService();
   final _tokenService = AlbumAccessTokenService();
 
+  final _titleCtrl = TextEditingController();
   final _eventTypeLabelCtrl = TextEditingController();
   final _themeEmojiCtrl = TextEditingController();
   ColorFillValue _themeColorFill =
@@ -110,6 +111,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
   @override
   void dispose() {
+    _titleCtrl.dispose();
     _eventTypeLabelCtrl.dispose();
     _themeEmojiCtrl.dispose();
     _accessCodeHintCtrl.dispose();
@@ -150,6 +152,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
         _status = album.status;
         _codeProtected = album.guestAccessCodeEnabled;
 
+        _titleCtrl.text = album.title;
         _eventTypeLabelCtrl.text = album.eventTypeLabel ?? '';
         _themeEmojiCtrl.text = album.themeEmoji ?? '';
         _themeColorFill = ColorFillValue.fromAlbumFields(
@@ -227,6 +230,16 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
       return;
     }
 
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) {
+      context.showTopRightSnackBar('Album name is required.');
+      return;
+    }
+    if (title.length > 150) {
+      context.showTopRightSnackBar('Album name must be 150 characters or less.');
+      return;
+    }
+
     final maxFileSizeMb = int.tryParse(_maxFileSizeCtrl.text.trim());
     if (maxFileSizeMb == null || maxFileSizeMb <= 0) {
       context.showTopRightSnackBar('Max file size must be a positive number.');
@@ -262,6 +275,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
       final updatedAlbum = await _albumService.updateAlbum(
         albumId: album.id,
         patch: {
+          'title': title,
           'event_type_label': _eventTypeLabelCtrl.text.trim().isEmpty
               ? null
               : _eventTypeLabelCtrl.text.trim(),
@@ -625,6 +639,16 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                       children: [
                         const _SectionTitle('Look & branding'),
                         const SizedBox(height: 10),
+                        _LabeledField(
+                          label: 'Album name',
+                          child: TextField(
+                            controller: _titleCtrl,
+                            decoration: const InputDecoration(
+                              hintText: 'Ex. Ana & Luis Wedding',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         _LabeledField(
                           label: 'Custom event type label (optional)',
                           child: TextField(

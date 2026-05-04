@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/album.dart';
+import '../../models/note.dart';
 import '../../services/album_service.dart';
 import '../../shared/ui/app_snackbars.dart';
 import '../../shared/ui/color_utils.dart';
@@ -37,7 +38,7 @@ class AlbumAdminPage extends StatefulWidget {
 class _AlbumAdminPageState extends State<AlbumAdminPage> {
   final _albumService = AlbumService();
   final _mediaRepository = _AdminMediaRepository();
-  final _mediaManagerKey = GlobalKey<_AdminMediaManagerState>();
+  final _memoriesManagerKey = GlobalKey<_AdminMemoriesManagerState>();
   final _qrKey = GlobalKey();
 
   late Future<Album> _albumFuture;
@@ -59,7 +60,7 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
 
   void _reload() {
     setState(_load);
-    _mediaManagerKey.currentState?.reload();
+    _memoriesManagerKey.currentState?.reload();
   }
 
   Future<void> _pickAndUploadMedia(Album album) async {
@@ -117,6 +118,66 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
       _showSnack('Upload failed: $e');
     } finally {
       if (mounted) setState(() => _mediaBusy = false);
+    }
+  }
+
+  Future<void> _editAlbumTitle(Album album) async {
+    final ctrl = TextEditingController(text: album.title);
+
+    final nextTitle = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit album name'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Album name'),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => Navigator.of(context).pop(ctrl.text.trim()),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+                    child: const Text('Save'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    ctrl.dispose();
+
+    final value = (nextTitle ?? '').trim();
+    if (value.isEmpty || value == album.title) return;
+
+    if (value.length > 150) {
+      _showSnack('Album name must be 150 characters or less.');
+      return;
+    }
+
+    try {
+      await _albumService.updateAlbum(albumId: album.id, patch: {'title': value});
+      if (!mounted) return;
+      _showSnack('Album name updated.');
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Could not update album name: $e');
     }
   }
 
@@ -251,6 +312,9 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                       mediaBusy: _mediaBusy,
                                       onAddMedia: () =>
                                           _pickAndUploadMedia(album),
+                                      onEditTitle: () => _editAlbumTitle(album),
+                                      onOpenSettings: () =>
+                                          context.go('/album/${album.id}/settings'),
                                       onCopyLink: () => _copyLink(uploadUrl),
                                       onShareLink: () => Share.share(uploadUrl),
                                       onOpenSlideshow: () {
@@ -282,6 +346,9 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                       mediaBusy: _mediaBusy,
                                       onAddMedia: () =>
                                           _pickAndUploadMedia(album),
+                                      onEditTitle: () => _editAlbumTitle(album),
+                                      onOpenSettings: () =>
+                                          context.go('/album/${album.id}/settings'),
                                       onCopyLink: () => _copyLink(uploadUrl),
                                       onShareLink: () => Share.share(uploadUrl),
                                       onOpenSlideshow: () {
@@ -315,15 +382,15 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                           padding: const EdgeInsets.fromLTRB(20, 26, 24, 12),
                           child: _ContentHeader(
                             subtitle:
-                                'Add, review and remove photos or videos from this album.',
+                                'Review and manage photos, videos, audios, and notes from this album.',
                           ),
                         ),
                       ),
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 24, 32),
-                          child: _AdminMediaManager(
-                            key: _mediaManagerKey,
+                          child: _AdminMemoriesManager(
+                            key: _memoriesManagerKey,
                             albumId: album.id,
                             onChanged: _reload,
                           ),
@@ -669,6 +736,8 @@ class _AlbumMainPanel extends StatelessWidget {
     required this.album,
     required this.mediaBusy,
     required this.onAddMedia,
+    required this.onEditTitle,
+    required this.onOpenSettings,
     required this.onCopyLink,
     required this.onShareLink,
     required this.onOpenSlideshow,
@@ -677,6 +746,8 @@ class _AlbumMainPanel extends StatelessWidget {
   final Album album;
   final bool mediaBusy;
   final VoidCallback onAddMedia;
+  final VoidCallback onEditTitle;
+  final VoidCallback onOpenSettings;
   final VoidCallback onCopyLink;
   final VoidCallback onShareLink;
   final VoidCallback onOpenSlideshow;
@@ -707,27 +778,64 @@ class _AlbumMainPanel extends StatelessWidget {
                 color: accent.mix(const Color(0xFF111116), 0.08),
               ),
               const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      album.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 31,
-                        height: 1.02,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        color: Color(0xFF15151A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      description == null || description.isEmpty
-                          ? 'Your album is ready to receive guest memories.'
-                          : description,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                album.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 31,
+                                  height: 1.02,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.8,
+                                  color: Color(0xFF15151A),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: OutlinedButton(
+                                onPressed: onEditTitle,
+                                style: OutlinedButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Icon(Icons.edit_outlined, size: 18),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: OutlinedButton(
+                                onPressed: onOpenSettings,
+                                style: OutlinedButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Icon(Icons.settings_outlined, size: 18),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          description == null || description.isEmpty
+                              ? 'Your album is ready to receive guest memories.'
+                              : description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1010,8 +1118,10 @@ class _ContentHeader extends StatelessWidget {
   }
 }
 
-class _AdminMediaManager extends StatefulWidget {
-  const _AdminMediaManager({
+enum _AdminMemoriesTab { photos, videos, audios, notes }
+
+class _AdminMemoriesManager extends StatefulWidget {
+  const _AdminMemoriesManager({
     super.key,
     required this.albumId,
     required this.onChanged,
@@ -1021,28 +1131,43 @@ class _AdminMediaManager extends StatefulWidget {
   final VoidCallback onChanged;
 
   @override
-  State<_AdminMediaManager> createState() => _AdminMediaManagerState();
+  State<_AdminMemoriesManager> createState() => _AdminMemoriesManagerState();
 }
 
-class _AdminMediaManagerState extends State<_AdminMediaManager> {
-  final _repository = _AdminMediaRepository();
+class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
+  final _mediaRepository = _AdminMediaRepository();
+  final _notesRepository = _AdminNotesRepository();
 
-  late Future<List<_AdminMediaItem>> _future;
+  _AdminMemoriesTab _tab = _AdminMemoriesTab.photos;
+
+  late Future<List<_AdminMediaItem>> _mediaFuture;
+  late Future<List<MemoryNote>> _notesFuture;
+
   bool _deleting = false;
   bool _updating = false;
 
   @override
   void initState() {
     super.initState();
-    _future = _repository.getAlbumMedia(widget.albumId);
+    _mediaFuture = _mediaRepository.getAlbumMedia(widget.albumId);
+    _notesFuture = _notesRepository.getAlbumNotes(widget.albumId);
   }
 
   void reload() {
     if (!mounted) return;
-
     setState(() {
-      _future = _repository.getAlbumMedia(widget.albumId);
+      _mediaFuture = _mediaRepository.getAlbumMedia(widget.albumId);
+      _notesFuture = _notesRepository.getAlbumNotes(widget.albumId);
     });
+  }
+
+  List<_AdminMediaItem> _filterMedia(List<_AdminMediaItem> items) {
+    return switch (_tab) {
+      _AdminMemoriesTab.photos => items.where((e) => e.type == 'photo').toList(),
+      _AdminMemoriesTab.videos => items.where((e) => e.type == 'video').toList(),
+      _AdminMemoriesTab.audios => items.where((e) => e.type == 'audio').toList(),
+      _AdminMemoriesTab.notes => const <_AdminMediaItem>[],
+    };
   }
 
   Future<void> _deleteMedia(_AdminMediaItem item) async {
@@ -1051,29 +1176,22 @@ class _AdminMediaManagerState extends State<_AdminMediaManager> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return _DeleteMediaDialog(
-          fileName: item.originalFileName ?? 'this file',
-        );
+        return _DeleteMediaDialog(fileName: item.originalFileName ?? 'this file');
       },
     );
 
     if (confirmed != true) return;
 
     setState(() => _deleting = true);
-
     try {
-      await _repository.deleteMedia(item);
-      await _repository.refreshAlbumCounters(widget.albumId);
-
+      await _mediaRepository.deleteMedia(item);
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
-
       context.showTopRightSnackBar('Media deleted successfully.');
-
       widget.onChanged();
       reload();
     } catch (e) {
       if (!mounted) return;
-
       context.showTopRightSnackBar('Could not delete media: $e');
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -1084,14 +1202,14 @@ class _AdminMediaManagerState extends State<_AdminMediaManager> {
     if (_updating || item.status.toLowerCase() == 'approved') return;
     setState(() => _updating = true);
     try {
-      await _repository.updateMedia(
+      await _mediaRepository.updateMedia(
         id: item.id,
         patch: {
           'status': 'approved',
           'approved_at': DateTime.now().toIso8601String(),
         },
       );
-      await _repository.refreshAlbumCounters(widget.albumId);
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
       context.showTopRightSnackBar('Media approved.');
       widget.onChanged();
@@ -1104,15 +1222,15 @@ class _AdminMediaManagerState extends State<_AdminMediaManager> {
     }
   }
 
-  Future<void> _toggleHidden(_AdminMediaItem item) async {
+  Future<void> _toggleMediaHidden(_AdminMediaItem item) async {
     if (_updating) return;
     setState(() => _updating = true);
     try {
-      await _repository.updateMedia(
+      await _mediaRepository.updateMedia(
         id: item.id,
         patch: {'is_hidden': !item.isHidden},
       );
-      await _repository.refreshAlbumCounters(widget.albumId);
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
       if (!mounted) return;
       widget.onChanged();
       reload();
@@ -1124,11 +1242,11 @@ class _AdminMediaManagerState extends State<_AdminMediaManager> {
     }
   }
 
-  Future<void> _toggleFeatured(_AdminMediaItem item) async {
+  Future<void> _toggleMediaFeatured(_AdminMediaItem item) async {
     if (_updating) return;
     setState(() => _updating = true);
     try {
-      await _repository.updateMedia(
+      await _mediaRepository.updateMedia(
         id: item.id,
         patch: {'is_featured': !item.isFeatured},
       );
@@ -1142,56 +1260,198 @@ class _AdminMediaManagerState extends State<_AdminMediaManager> {
     }
   }
 
+  Future<void> _deleteNote(MemoryNote note) async {
+    if (_deleting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return _DeleteNoteDialog(message: note.message);
+      },
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deleting = true);
+    try {
+      await _notesRepository.deleteNote(note.id);
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
+      if (!mounted) return;
+      context.showTopRightSnackBar('Note deleted.');
+      widget.onChanged();
+      reload();
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar('Could not delete note: $e');
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  Future<void> _approveNote(MemoryNote note) async {
+    if (_updating || note.status.toLowerCase() == 'approved') return;
+    setState(() => _updating = true);
+    try {
+      await _notesRepository.updateNote(
+        id: note.id,
+        patch: {
+          'status': 'approved',
+          'approved_at': DateTime.now().toIso8601String(),
+        },
+      );
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
+      if (!mounted) return;
+      context.showTopRightSnackBar('Note approved.');
+      widget.onChanged();
+      reload();
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar('Could not approve note: $e');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  Future<void> _toggleNoteHidden(MemoryNote note) async {
+    if (_updating) return;
+    setState(() => _updating = true);
+    try {
+      await _notesRepository.updateNote(
+        id: note.id,
+        patch: {'is_hidden': !note.isHidden},
+      );
+      await _mediaRepository.refreshAlbumCounters(widget.albumId);
+      if (!mounted) return;
+      widget.onChanged();
+      reload();
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar('Could not update note: $e');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  Future<void> _toggleNoteFeatured(MemoryNote note) async {
+    if (_updating) return;
+    setState(() => _updating = true);
+    try {
+      await _notesRepository.updateNote(
+        id: note.id,
+        patch: {'is_featured': !note.isFeatured},
+      );
+      if (!mounted) return;
+      reload();
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar('Could not update note: $e');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return _Surface(
       padding: const EdgeInsets.all(14),
-      child: FutureBuilder<List<_AdminMediaItem>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox(height: 220, child: LoadingView());
-          }
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _AdminMemoriesTabs(
+            selected: _tab,
+            onChanged: (t) => setState(() => _tab = t),
+          ),
+          const SizedBox(height: 12),
+          if (_tab == _AdminMemoriesTab.notes)
+            FutureBuilder<List<MemoryNote>>(
+              future: _notesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(height: 220, child: LoadingView());
+                }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: ErrorView(message: snapshot.error.toString()),
+                  );
+                }
 
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(18),
-              child: ErrorView(message: snapshot.error.toString()),
-            );
-          }
+                final notes = snapshot.data ?? const <MemoryNote>[];
+                if (notes.isEmpty) {
+                  return const _EmptyNotesState();
+                }
 
-          final items = snapshot.data ?? [];
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: notes.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 320,
+                    mainAxisExtent: 190,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemBuilder: (context, index) {
+                    final note = notes[index];
+                    return _AdminNoteCard(
+                      note: note,
+                      busy: _deleting || _updating,
+                      onDelete: () => _deleteNote(note),
+                      onApprove: note.status.toLowerCase() == 'approved'
+                          ? null
+                          : () => _approveNote(note),
+                      onToggleHidden: () => _toggleNoteHidden(note),
+                      onToggleFeatured: () => _toggleNoteFeatured(note),
+                    );
+                  },
+                );
+              },
+            )
+          else
+            FutureBuilder<List<_AdminMediaItem>>(
+              future: _mediaFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(height: 220, child: LoadingView());
+                }
 
-          if (items.isEmpty) {
-            return const _EmptyMediaState();
-          }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: ErrorView(message: snapshot.error.toString()),
+                  );
+                }
 
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 230,
-              mainAxisExtent: 246,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+                final items = _filterMedia(snapshot.data ?? const <_AdminMediaItem>[]);
+                if (items.isEmpty) {
+                  return const _EmptyMediaState();
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: items.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 230,
+                    mainAxisExtent: 246,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return _AdminMediaCard(
+                      item: item,
+                      busy: _deleting || _updating,
+                      onDelete: () => _deleteMedia(item),
+                      onApprove: item.status.toLowerCase() == 'approved'
+                          ? null
+                          : () => _approveMedia(item),
+                      onToggleHidden: () => _toggleMediaHidden(item),
+                      onToggleFeatured: () => _toggleMediaFeatured(item),
+                    );
+                  },
+                );
+              },
             ),
-            itemBuilder: (context, index) {
-              final item = items[index];
-
-              return _AdminMediaCard(
-                item: item,
-                busy: _deleting || _updating,
-                onDelete: () => _deleteMedia(item),
-                onApprove: item.status.toLowerCase() == 'approved'
-                    ? null
-                    : () => _approveMedia(item),
-                onToggleHidden: () => _toggleHidden(item),
-                onToggleFeatured: () => _toggleFeatured(item),
-              );
-            },
-          );
-        },
+        ],
       ),
     );
   }
@@ -1243,6 +1503,419 @@ class _DeleteMediaDialog extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _AdminMemoriesTabs extends StatelessWidget {
+  const _AdminMemoriesTabs({required this.selected, required this.onChanged});
+
+  final _AdminMemoriesTab selected;
+  final ValueChanged<_AdminMemoriesTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final specs = const [
+      (_AdminMemoriesTab.photos, Icons.photo_outlined, 'Photos'),
+      (_AdminMemoriesTab.videos, Icons.videocam_outlined, 'Videos'),
+      (_AdminMemoriesTab.audios, Icons.mic_none_outlined, 'Audios'),
+      (_AdminMemoriesTab.notes, Icons.sticky_note_2_outlined, 'Notes'),
+    ];
+
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < specs.length; i++)
+            Expanded(
+              child: _AdminTabButton(
+                selected: selected == specs[i].$1,
+                icon: specs[i].$2,
+                label: specs[i].$3,
+                onTap: () => onChanged(specs[i].$1),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminTabButton extends StatelessWidget {
+  const _AdminTabButton({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: double.infinity,
+        height: double.infinity,
+        color: selected ? Colors.black : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Colors.white : const Color(0xFF15151A),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : const Color(0xFF15151A),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyNotesState extends StatelessWidget {
+  const _EmptyNotesState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.sticky_note_2_outlined, size: 34),
+          const SizedBox(height: 10),
+          const Text(
+            'No notes yet.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Guest notes will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.black.withOpacity(0.50),
+              fontSize: 13.5,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteNoteDialog extends StatelessWidget {
+  const _DeleteNoteDialog({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = message.trim();
+    final preview = trimmed.length > 90 ? '${trimmed.substring(0, 90)}…' : trimmed;
+
+    return AlertDialog(
+      title: const Text('Delete note?'),
+      content: Text(
+        'This will remove the note from the album. This action cannot be undone.\n\n“$preview”',
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF15151A),
+                  side: const BorderSide(color: Color(0xFFE5E5EA)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFD92D20),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                child: const Text('Delete'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AdminNoteCard extends StatelessWidget {
+  const _AdminNoteCard({
+    required this.note,
+    required this.busy,
+    required this.onDelete,
+    required this.onApprove,
+    required this.onToggleHidden,
+    required this.onToggleFeatured,
+  });
+
+  final MemoryNote note;
+  final bool busy;
+  final VoidCallback onDelete;
+  final VoidCallback? onApprove;
+  final VoidCallback onToggleHidden;
+  final VoidCallback onToggleFeatured;
+
+  @override
+  Widget build(BuildContext context) {
+    final isApproved = note.status.toLowerCase() == 'approved';
+    final title = note.message.trim().isEmpty ? 'Note' : note.message.trim();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB).withOpacity(.9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            showDialog<void>(
+              context: context,
+              barrierColor: Colors.black.withOpacity(0.82),
+              builder: (context) => _AdminNoteViewerDialog(note: note),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _TypePill(type: 'note'),
+                    const Spacer(),
+                    if (!isApproved)
+                      _StatusPillSmall(
+                        text: note.status,
+                        color: const Color(0xFFB42318),
+                      )
+                    else
+                      const _StatusPillSmall(
+                        text: 'approved',
+                        color: Color(0xFF12B76A),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      height: 1.28,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF15151A),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Delete',
+                      onPressed: busy ? null : onDelete,
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                    IconButton(
+                      tooltip: note.isHidden ? 'Unhide' : 'Hide',
+                      onPressed: busy ? null : onToggleHidden,
+                      icon: Icon(
+                        note.isHidden
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: note.isFeatured ? 'Unfeature' : 'Feature',
+                      onPressed: busy ? null : onToggleFeatured,
+                      icon: Icon(
+                        note.isFeatured ? Icons.star_rounded : Icons.star_border_rounded,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (onApprove != null)
+                      FilledButton.icon(
+                        onPressed: busy ? null : onApprove,
+                        icon: const Icon(Icons.check_rounded, size: 18),
+                        label: const Text('Approve'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminNoteViewerDialog extends StatelessWidget {
+  const _AdminNoteViewerDialog({required this.note});
+
+  final MemoryNote note;
+
+  Future<_AdminGuestInfo?> _loadGuestInfo() async {
+    final guestId = note.guestId;
+    if (guestId == null || guestId.trim().isEmpty) return null;
+
+    final row = await Supabase.instance.client
+        .from('guests')
+        .select('name, email')
+        .eq('id', guestId)
+        .maybeSingle();
+
+    if (row == null) return null;
+    return _AdminGuestInfo(
+      name: row['name'] as String?,
+      email: row['email'] as String?,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              color: Colors.white,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.sticky_note_2_outlined,
+                    size: 18,
+                    color: Color(0xFF15151A),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Note',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF15151A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+              child: Text(
+                '“${note.message}”',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  height: 1.25,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: FutureBuilder<_AdminGuestInfo?>(
+                future: _loadGuestInfo(),
+                builder: (context, snapshot) {
+                  final uploadedBy = (note.guestId == null)
+                      ? 'Admin'
+                      : (snapshot.data?.displayName ?? 'Guest');
+
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.person_outline_rounded,
+                        size: 18,
+                        color: Color(0xFF667085),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Uploaded by $uploadedBy',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF667085),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1528,6 +2201,7 @@ class _TypePill extends StatelessWidget {
     final (IconData icon, String label) = switch (type) {
       'video' => (Icons.videocam_outlined, 'Video'),
       'audio' => (Icons.mic_none_outlined, 'Audio'),
+      'note' => (Icons.sticky_note_2_outlined, 'Note'),
       _ => (Icons.photo_outlined, 'Photo'),
     };
 
@@ -2272,6 +2946,35 @@ class _AdminMediaRepository {
       default:
         return 'bin';
     }
+  }
+}
+
+class _AdminNotesRepository {
+  _AdminNotesRepository();
+
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<List<MemoryNote>> getAlbumNotes(String albumId) async {
+    final rows = await _supabase
+        .from('notes')
+        .select('id, album_id, guest_id, message, status, is_featured, is_hidden, created_at')
+        .eq('album_id', albumId)
+        .order('created_at', ascending: false);
+
+    return (rows as List<dynamic>)
+        .map((row) => MemoryNote.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> updateNote({
+    required String id,
+    required Map<String, dynamic> patch,
+  }) async {
+    await _supabase.from('notes').update(patch).eq('id', id);
+  }
+
+  Future<void> deleteNote(String id) async {
+    await _supabase.from('notes').delete().eq('id', id);
   }
 }
 

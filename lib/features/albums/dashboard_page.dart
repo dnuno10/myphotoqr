@@ -1,0 +1,873 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../models/album.dart';
+import '../../services/album_service.dart';
+import '../../services/auth_service.dart';
+import '../../shared/ui/color_utils.dart';
+import '../../shared/ui/event_icons.dart';
+import '../../shared/widgets/error_view.dart';
+import '../../shared/widgets/loading_view.dart';
+import '../../shared/widgets/logo_mark.dart';
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  final _albumService = AlbumService();
+  late Future<List<Album>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _albumService.getMyAlbums();
+  }
+
+  Future<void> _signOut() async {
+    await AuthService().signOut();
+
+    if (mounted) {
+      context.go('/login');
+    }
+  }
+
+  void _buyAlbum() {
+    context.go('/create');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Row(
+          children: [
+            _DashboardSidebar(
+              onDashboard: () => context.go('/'),
+              onCreateAlbum: () => context.go('/create'),
+              onBuyAlbum: _buyAlbum,
+              onSignOut: _signOut,
+            ),
+            Expanded(
+              child: FutureBuilder<List<Album>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const LoadingView();
+                  }
+
+                  if (snapshot.hasError) {
+                    return ErrorView(message: snapshot.error.toString());
+                  }
+
+                  final albums = snapshot.data ?? [];
+
+                  return CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 26, 34, 0),
+                          child: _DashboardHeader(
+                            albums: albums,
+                            onCreateAlbum: () => context.go('/create'),
+                            onBuyAlbum: _buyAlbum,
+                          ),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 22, 34, 0),
+                          child: _DashboardMetrics(albums: albums),
+                        ),
+                      ),
+                      if (albums.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: _EmptyAlbumsCard(onBuyAlbum: _buyAlbum),
+                          ),
+                        )
+                      else ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(22, 30, 34, 12),
+                            child: _SectionTitle(
+                              subtitle:
+                                  'Open an album to manage uploads, QR access and guest memories.',
+                            ),
+                          ),
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(22, 0, 34, 34),
+                          sliver: SliverGrid.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 380,
+                                  mainAxisExtent: 222,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                ),
+                            itemCount: albums.length,
+                            itemBuilder: (context, index) {
+                              final album = albums[index];
+
+                              return _AlbumCard(
+                                album: album,
+                                onTap: () => context.go('/album/${album.id}'),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardSidebar extends StatelessWidget {
+  const _DashboardSidebar({
+    required this.onDashboard,
+    required this.onCreateAlbum,
+    required this.onBuyAlbum,
+    required this.onSignOut,
+  });
+
+  final VoidCallback onDashboard;
+  final VoidCallback onCreateAlbum;
+  final VoidCallback onBuyAlbum;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 76,
+      margin: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 2),
+          const LogoMark(size: 44),
+          const SizedBox(height: 26),
+          _SidebarButton(
+            icon: Icons.dashboard_rounded,
+            tooltip: 'Dashboard',
+            active: true,
+            onTap: onDashboard,
+          ),
+          const SizedBox(height: 12),
+          _SidebarButton(
+            icon: Icons.add_rounded,
+            tooltip: 'Create album',
+            onTap: onCreateAlbum,
+          ),
+          const SizedBox(height: 12),
+          _SidebarButton(
+            icon: Icons.shopping_bag_outlined,
+            tooltip: 'Buy album',
+            onTap: onBuyAlbum,
+          ),
+          const Spacer(),
+          _SidebarButton(
+            icon: Icons.logout_rounded,
+            tooltip: 'Sign out',
+            onTap: onSignOut,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarButton extends StatelessWidget {
+  const _SidebarButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: SizedBox(
+          width: 48,
+          height: 44,
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 3,
+                height: active ? 22 : 0,
+                margin: const EdgeInsets.only(left: 4, right: 9),
+                decoration: BoxDecoration(
+                  color: active ? Colors.black : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Icon(
+                icon,
+                size: 22,
+                color: active ? Colors.black : const Color(0xFF6A6A74),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader({
+    required this.albums,
+    required this.onCreateAlbum,
+    required this.onBuyAlbum,
+  });
+
+  final List<Album> albums;
+  final VoidCallback onCreateAlbum;
+  final VoidCallback onBuyAlbum;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAlbums = albums.isNotEmpty;
+
+    return _Surface(
+      padding: const EdgeInsets.fromLTRB(24, 22, 22, 22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SoftLabel(
+                icon: Icons.auto_awesome_rounded,
+                text: 'QR ALBUM DASHBOARD',
+              ),
+              const SizedBox(height: 14),
+              Text(
+                hasAlbums
+                    ? 'Manage every event from one place.'
+                    : 'Create your first QR album.',
+                style: const TextStyle(
+                  color: Color(0xFF15151A),
+                  fontSize: 31,
+                  height: 1.04,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.9,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasAlbums
+                    ? 'Review albums, uploads and guest memories without extra steps.'
+                    : 'Fill in your album details, pay once and start collecting memories.',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  height: 1.38,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black.withOpacity(0.48),
+                ),
+              ),
+            ],
+          );
+
+          final actions = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 156,
+                height: 48,
+                child: _SecondaryButton(
+                  text: 'Create draft',
+                  icon: Icons.edit_outlined,
+                  onPressed: onCreateAlbum,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 156,
+                height: 48,
+                child: _PrimaryButton(
+                  text: 'Buy album',
+                  icon: Icons.shopping_bag_outlined,
+                  onPressed: onBuyAlbum,
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [content, const SizedBox(height: 18), actions],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: content),
+              const SizedBox(width: 22),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DashboardMetrics extends StatelessWidget {
+  const _DashboardMetrics({required this.albums});
+
+  final List<Album> albums;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalUploads = albums.fold<int>(
+      0,
+      (previous, album) => previous + album.totalUploads,
+    );
+
+    final totalPhotos = albums.fold<int>(
+      0,
+      (previous, album) => previous + album.totalPhotos,
+    );
+
+    final totalVideos = albums.fold<int>(
+      0,
+      (previous, album) => previous + album.totalVideos,
+    );
+
+    final totalNotes = albums.fold<int>(
+      0,
+      (previous, album) => previous + album.totalNotes,
+    );
+
+    final metrics = [
+      _MetricData(
+        title: 'Albums',
+        value: albums.length.toString(),
+        icon: Icons.photo_library_outlined,
+      ),
+      _MetricData(
+        title: 'Uploads',
+        value: totalUploads.toString(),
+        icon: Icons.cloud_upload_outlined,
+      ),
+      _MetricData(
+        title: 'Photos',
+        value: totalPhotos.toString(),
+        icon: Icons.photo_outlined,
+      ),
+      _MetricData(
+        title: 'Videos',
+        value: totalVideos.toString(),
+        icon: Icons.videocam_outlined,
+      ),
+      _MetricData(
+        title: 'Notes',
+        value: totalNotes.toString(),
+        icon: Icons.notes_rounded,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 940) {
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: metrics.map((metric) {
+              return SizedBox(width: 180, child: _MetricCard(metric: metric));
+            }).toList(),
+          );
+        }
+
+        return Row(
+          children: [
+            for (int index = 0; index < metrics.length; index++) ...[
+              Expanded(child: _MetricCard(metric: metrics[index])),
+              if (index != metrics.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MetricData {
+  const _MetricData({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.metric});
+
+  final _MetricData metric;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Surface(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        height: 82,
+        child: Row(
+          children: [
+            Icon(metric.icon, color: const Color(0xFF15151A), size: 21),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    metric.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF15151A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    metric.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black.withOpacity(0.45),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.subtitle});
+
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const _SoftLabel(icon: Icons.folder_open_rounded, text: 'ALBUMS'),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.35,
+              fontWeight: FontWeight.w500,
+              color: Colors.black.withOpacity(0.46),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyAlbumsCard extends StatelessWidget {
+  const _EmptyAlbumsCard({required this.onBuyAlbum});
+
+  final VoidCallback onBuyAlbum;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Surface(
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 24),
+      child: SizedBox(
+        width: 390,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.photo_album_outlined,
+              size: 36,
+              color: Color(0xFF15151A),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Create your first album',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 26,
+                height: 1.05,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.7,
+                color: Color(0xFF15151A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create your album details, complete payment and start collecting guest memories.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14.5,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+                color: Colors.black.withOpacity(0.45),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: _PrimaryButton(
+                text: 'Buy album',
+                icon: Icons.shopping_bag_outlined,
+                onPressed: onBuyAlbum,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumCard extends StatelessWidget {
+  const _AlbumCard({required this.album, required this.onTap});
+
+  final Album album;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isProtected = album.guestAccessCodeEnabled;
+    final accent = (album.themeColor).toColorOr(const Color(0xFF6D28D9));
+    final description = album.description?.trim();
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: _Surface(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  iconForEventType(album.eventType),
+                  size: 27,
+                  color: accent.mix(const Color(0xFF111116), 0.12),
+                ),
+                const Spacer(),
+                _StatusPill(
+                  text: _formatStatus(album.status),
+                  color: album.status == 'active'
+                      ? const Color(0xFF12B76A)
+                      : const Color(0xFF111827),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              album.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 23,
+                height: 1,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.6,
+                color: Color(0xFF15151A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description == null || description.isEmpty
+                  ? 'Ready to share with guests.'
+                  : description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+                color: Colors.black.withOpacity(0.45),
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xFFECECF0), width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _AlbumMiniStat(
+                      label: 'Photos',
+                      value: album.totalPhotos.toString(),
+                    ),
+                  ),
+                  Expanded(
+                    child: _AlbumMiniStat(
+                      label: 'Videos',
+                      value: album.totalVideos.toString(),
+                    ),
+                  ),
+                  Expanded(
+                    child: _AlbumMiniStat(
+                      label: 'Notes',
+                      value: album.totalNotes.toString(),
+                    ),
+                  ),
+                  if (isProtected)
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      size: 18,
+                      color: Color(0xFF15151A),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatStatus(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    if (normalized.isEmpty) return 'Draft';
+    if (normalized == 'active') return 'Active';
+    if (normalized == 'draft') return 'Draft';
+    if (normalized == 'paused') return 'Paused';
+    if (normalized == 'archived') return 'Archived';
+
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
+}
+
+class _AlbumMiniStat extends StatelessWidget {
+  const _AlbumMiniStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 19,
+            height: 1,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF15151A),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: Colors.black.withOpacity(0.42),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withOpacity(0.14)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _SoftLabel extends StatelessWidget {
+  const _SoftLabel({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF15151A)),
+        const SizedBox(width: 7),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.45,
+            color: Color(0xFF15151A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.text,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String text;
+  final VoidCallback onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: onPressed,
+      child: icon == null
+          ? Text(text)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18),
+                const SizedBox(width: 8),
+                Text(text),
+              ],
+            ),
+    );
+  }
+}
+
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
+    required this.text,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String text;
+  final VoidCallback onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      child: icon == null
+          ? Text(text)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18),
+                const SizedBox(width: 8),
+                Text(text),
+              ],
+            ),
+    );
+  }
+}
+
+class _Surface extends StatelessWidget {
+  const _Surface({
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x02000000),
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}

@@ -4,7 +4,7 @@ class AppConfig {
   static const String supabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96Z3ljcXlpaXp4emdsdHJpbWpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NzAxNDgsImV4cCI6MjA5MzI0NjE0OH0.TRc8XzaCq41XAc3sqoJDFeLxWbiKvZCtqramaJQE3oQ';
 
-  static const String appPublicBaseUrl = 'https://myphotoqr.com';
+  static const String appPublicBaseUrl = 'https://app.myphotoqr.com';
 
   static const String stripeProductId = 'prod_URHidzkDgUyTy6';
 

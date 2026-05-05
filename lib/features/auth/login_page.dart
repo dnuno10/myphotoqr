@@ -7,7 +7,14 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.nextLocation,
+    this.navigateOnSuccess = true,
+  });
+
+  final String? nextLocation;
+  final bool navigateOnSuccess;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -151,7 +158,10 @@ class _LoginPageState extends State<LoginPage> {
         _loading = false;
       });
 
-      context.go('/');
+      if (widget.navigateOnSuccess) {
+        final next = widget.nextLocation;
+        context.go((next != null && next.startsWith('/')) ? next : '/');
+      }
     } catch (_) {
       if (!mounted) return;
 

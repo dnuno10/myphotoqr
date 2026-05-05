@@ -16,6 +16,17 @@ import 'supabase_client.dart';
 import 'app_theme.dart';
 
 class AppRouter {
+  static String? _safeNextLocation(GoRouterState state) {
+    final next = state.uri.queryParameters['next'];
+    if (next == null || next.isEmpty) return null;
+
+    // Prevent open redirects (only allow in-app paths).
+    if (!next.startsWith('/')) return null;
+    if (next == '/login' || next.startsWith('/login?')) return null;
+
+    return next;
+  }
+
   static final router = GoRouter(
     refreshListenable: GoRouterRefreshStream(supabase.auth.onAuthStateChange),
     redirect: (context, state) {
@@ -26,6 +37,7 @@ class AppRouter {
       final isPublicAlbum = location.startsWith('/a/');
       final isSlideshow = location.startsWith('/slideshow/');
       final isPaymentSuccess = location == '/payment-success';
+      final isCreate = location == '/create';
 
       // Estas rutas deben poder abrir sin que el redirect las mande al login/dashboard.
       if (isPublicAlbum || isSlideshow || isPaymentSuccess) {
@@ -33,11 +45,12 @@ class AppRouter {
       }
 
       if (session == null && !isLogin) {
-        return '/login';
+        final next = Uri.encodeComponent(state.uri.toString());
+        return '/login?next=$next';
       }
 
       if (session != null && isLogin) {
-        return '/';
+        return _safeNextLocation(state) ?? '/';
       }
 
       return null;
@@ -45,11 +58,18 @@ class AppRouter {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (_, __) =>
-            Theme(data: AppTheme.login, child: const LoginPage()),
+        builder: (_, state) => Theme(
+          data: AppTheme.login,
+          child: LoginPage(nextLocation: _safeNextLocation(state)),
+        ),
       ),
       GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
-      GoRoute(path: '/create', builder: (_, __) => const CreateAlbumPage()),
+      GoRoute(
+        path: '/create',
+        builder: (_, __) {
+          return const CreateAlbumPage();
+        },
+      ),
       GoRoute(
         path: '/payment-success',
         builder: (_, state) {

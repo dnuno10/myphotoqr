@@ -42,6 +42,25 @@ serve(async (req) => {
 
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // If the request is authenticated and the user owns the album, allow export
+    // even when guest downloads are disabled (admin export).
+    const authHeader = req.headers.get("authorization") ??
+      req.headers.get("Authorization") ?? "";
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
+
+    let requestUserId: string | null = null;
+    if (bearerToken && bearerToken.length > 20) {
+      try {
+        // With service-role key, we can validate a user JWT.
+        const { data } = await adminSupabase.auth.getUser(bearerToken);
+        requestUserId = data?.user?.id ?? null;
+      } catch (_) {
+        requestUserId = null;
+      }
+    }
+
     const { data: albumSettings, error: settingsError } = await adminSupabase
       .from("album_settings")
       .select("allow_guest_downloads")
@@ -49,21 +68,25 @@ serve(async (req) => {
       .maybeSingle();
     if (settingsError) throw settingsError;
 
-    if (!albumSettings?.allow_guest_downloads) {
-      return json({ error: "Downloads are disabled for this album." }, 403);
-    }
-
     const { data: album, error: albumError } = await adminSupabase
       .from("albums")
-      .select("id, slug, title, guest_access_code_enabled, visibility")
+      .select(
+        "id, slug, title, guest_access_code_enabled, visibility, user_id, cover_image_url, banner_image_url",
+      )
       .eq("id", albumId)
       .single();
     if (albumError) throw albumError;
 
+    const isOwner = requestUserId != null && album.user_id === requestUserId;
+
+    if (!albumSettings?.allow_guest_downloads && !isOwner) {
+      return json({ error: "Downloads are disabled for this album." }, 403);
+    }
+
     const codeProtected = album.guest_access_code_enabled === true ||
       (album.visibility?.toString() ?? "") === "code_protected";
 
-    if (codeProtected) {
+    if (codeProtected && !isOwner) {
       if (!guestCode || guestCode.trim().length < 4) {
         return json({ error: "Access code required." }, 401);
       }
@@ -98,32 +121,48 @@ serve(async (req) => {
     const exportId = exportRow.id as string;
 
     try {
-      const { data: mediaRows, error: mediaError } = await adminSupabase
+      let mediaQuery = adminSupabase
         .from("media_uploads")
         .select(
           "id, type, file_url, original_file_name, file_extension, file_size_bytes, created_at, status, is_hidden",
         )
         .eq("album_id", albumId)
-        .in("type", ["photo", "video"])
-        .eq("status", "approved")
+        .in("type", ["photo", "video", "audio"])
         .eq("is_hidden", false)
         .order("created_at", { ascending: true });
+      if (!isOwner) mediaQuery = mediaQuery.eq("status", "approved");
+
+      const { data: mediaRows, error: mediaError } = await mediaQuery;
       if (mediaError) throw mediaError;
 
-      const items = (mediaRows ?? []) as Array<Record<string, unknown>>;
+      const mediaItems = (mediaRows ?? []) as Array<Record<string, unknown>>;
 
-      if (items.length === 0) {
-        return json({ error: "No photos or videos found to export." }, 400);
+      let noteItems: Array<Record<string, unknown>> = [];
+      let notesQuery = adminSupabase
+        .from("notes")
+        .select("id, message, created_at, status, is_hidden")
+        .eq("album_id", albumId)
+        .eq("is_hidden", false)
+        .order("created_at", { ascending: true });
+      if (!isOwner) notesQuery = notesQuery.eq("status", "approved");
+      const { data: notesRows, error: notesError } = await notesQuery;
+      if (notesError) throw notesError;
+      noteItems = (notesRows ?? []) as Array<Record<string, unknown>>;
+
+      const totalItems = mediaItems.length + noteItems.length;
+
+      if (totalItems === 0) {
+        return json({ error: "No content found to export." }, 400);
       }
 
-      if (items.length > MAX_FILES) {
+      if (totalItems > MAX_FILES) {
         return json(
-          { error: `Too many files to export (${items.length}).` },
+          { error: `Too many files to export (${totalItems}).` },
           413,
         );
       }
 
-      const totalBytes = items.reduce((sum, item) => {
+      const totalBytes = mediaItems.reduce((sum, item) => {
         const n = Number(item.file_size_bytes ?? 0);
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
@@ -136,9 +175,32 @@ serve(async (req) => {
       }
 
       const zip = new JSZip();
+      let index = 0;
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+      const coverUrl = album.cover_image_url?.toString();
+      if (coverUrl && coverUrl.trim().length > 0) {
+        const ext = sanitizeExt(guessExtFromUrl(coverUrl) || "jpg");
+        const res = await fetch(coverUrl);
+        if (res.ok) {
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          zip.file(`branding/cover.${ext}`, bytes);
+          index++;
+        }
+      }
+
+      const bannerUrl = album.banner_image_url?.toString();
+      if (bannerUrl && bannerUrl.trim().length > 0) {
+        const ext = sanitizeExt(guessExtFromUrl(bannerUrl) || "jpg");
+        const res = await fetch(bannerUrl);
+        if (res.ok) {
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          zip.file(`branding/banner.${ext}`, bytes);
+          index++;
+        }
+      }
+
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i];
         const id = item.id?.toString() ?? `${i}`;
         const type = item.type?.toString() ?? "file";
         const fileUrl = item.file_url?.toString();
@@ -146,6 +208,8 @@ serve(async (req) => {
 
         const createdAt = item.created_at?.toString() ?? "";
         const ts = createdAt ? createdAt.replace(/[:.]/g, "-") : `${i}`;
+        const status = (item.status?.toString() ?? "").trim().toLowerCase();
+        const statusTag = status && status !== "approved" ? `_${status}` : "";
 
         const ext = sanitizeExt(
           item.file_extension?.toString() ?? guessExtFromUrl(fileUrl),
@@ -155,8 +219,13 @@ serve(async (req) => {
           item.original_file_name?.toString() ?? `${type}_${id}.${ext}`,
         );
 
-        const folder = type === "video" ? "videos" : "photos";
-        const name = `${folder}/${String(i + 1).padStart(3, "0")}_${ts}_${baseName}`;
+        const folder = type === "video"
+          ? "videos"
+          : type === "audio"
+          ? "audios"
+          : "photos";
+        const name =
+          `${folder}/${String(index + 1).padStart(3, "0")}_${ts}${statusTag}_${baseName}`;
 
         const res = await fetch(fileUrl);
         if (!res.ok) {
@@ -164,8 +233,34 @@ serve(async (req) => {
         }
         const bytes = new Uint8Array(await res.arrayBuffer());
         zip.file(name, bytes);
+        index++;
       }
 
+      for (let i = 0; i < noteItems.length; i++) {
+        const note = noteItems[i];
+        const id = note.id?.toString() ?? `${i}`;
+        const createdAt = note.created_at?.toString() ?? "";
+        const ts = createdAt ? createdAt.replace(/[:.]/g, "-") : `${i}`;
+        const status = (note.status?.toString() ?? "").trim().toLowerCase();
+        const statusTag = status && status !== "approved" ? `_${status}` : "";
+        const message = note.message?.toString() ?? "";
+        const baseName = sanitizeFileName(`note_${id}.txt`);
+        const name =
+          `notes/${String(index + 1).padStart(3, "0")}_${ts}${statusTag}_${baseName}`;
+
+        const body = [
+          `Album: ${album.title ?? album.slug ?? albumId}`,
+          `Created at: ${createdAt}`,
+          `Status: ${status || "approved"}`,
+          "",
+          message,
+        ].join("\n");
+
+        zip.file(name, body);
+        index++;
+      }
+
+      const totalFiles = index;
       const zipBytes = await zip.generateAsync({ type: "uint8array" });
       const storagePath = `exports/${albumId}/${exportId}.zip`;
 
@@ -188,7 +283,7 @@ serve(async (req) => {
         status: "completed",
         completed_at: new Date().toISOString(),
         file_size_bytes: zipBytes.byteLength,
-        total_files: items.length,
+        total_files: totalFiles,
         updated_at: new Date().toISOString(),
       }).eq("id", exportId);
 
@@ -232,4 +327,3 @@ function guessExtFromUrl(url: string) {
   const m = url.toLowerCase().match(/\.([a-z0-9]{2,6})(\?|$)/);
   return m?.[1] ?? "";
 }
-

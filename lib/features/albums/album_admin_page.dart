@@ -18,6 +18,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../models/album.dart';
 import '../../models/note.dart';
+import '../../services/album_export_service.dart';
 import '../../services/album_service.dart';
 import '../../shared/ui/app_snackbars.dart';
 import '../../shared/ui/color_utils.dart';
@@ -37,6 +38,7 @@ class AlbumAdminPage extends StatefulWidget {
 
 class _AlbumAdminPageState extends State<AlbumAdminPage> {
   final _albumService = AlbumService();
+  final _exportService = AlbumExportService();
   final _mediaRepository = _AdminMediaRepository();
   GlobalKey<_AdminMemoriesManagerState> _memoriesManagerKey =
       GlobalKey<_AdminMemoriesManagerState>();
@@ -47,6 +49,7 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
 
   bool _mediaBusy = false;
   bool _qrBusy = false;
+  bool _exportBusy = false;
 
   @override
   void initState() {
@@ -165,7 +168,8 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+                    onPressed: () =>
+                        Navigator.of(context).pop(ctrl.text.trim()),
                     child: const Text('Save'),
                   ),
                 ),
@@ -190,7 +194,10 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
     }
 
     try {
-      await _albumService.updateAlbum(albumId: album.id, patch: {'title': value});
+      await _albumService.updateAlbum(
+        albumId: album.id,
+        patch: {'title': value},
+      );
       if (!mounted) return;
       _showSnack('Album name updated.', type: ToastType.success);
       _reload();
@@ -260,6 +267,24 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
     context.showTopRightSnackBar(message, type: type);
   }
 
+  Future<void> _exportZip(Album album) async {
+    if (_exportBusy) return;
+    setState(() => _exportBusy = true);
+
+    try {
+      _showSnack('Preparing ZIP export...', type: ToastType.info);
+      final uri = await _exportService.exportAlbumZip(albumId: album.id);
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+      if (!mounted) return;
+      _showSnack('Export started.', type: ToastType.success);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Could not export album: $e', type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _exportBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -298,7 +323,8 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                             album: album,
                             albums: albums,
                             onAlbumChanged: (nextAlbumId) {
-                              if (nextAlbumId == null || nextAlbumId == album.id) {
+                              if (nextAlbumId == null ||
+                                  nextAlbumId == album.id) {
                                 return;
                               }
 
@@ -323,13 +349,14 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                 _AlbumMainPanel(
                                   album: album,
                                   mediaBusy: _mediaBusy,
+                                  exportBusy: _exportBusy,
                                   onAddMedia: () => _pickAndUploadMedia(album),
                                   onEditTitle: () => _editAlbumTitle(album),
-                                  onOpenSettings: () => context.go(
-                                    '/album/${album.id}/settings',
-                                  ),
+                                  onOpenSettings: () =>
+                                      context.go('/album/${album.id}/settings'),
                                   onCopyLink: () => _copyLink(uploadUrl),
                                   onShareLink: () => Share.share(uploadUrl),
+                                  onExportZip: () => _exportZip(album),
                                   onOpenSlideshow: () {
                                     context.go('/slideshow/${album.slug}');
                                   },
@@ -357,13 +384,14 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                 child: _AlbumMainPanel(
                                   album: album,
                                   mediaBusy: _mediaBusy,
+                                  exportBusy: _exportBusy,
                                   onAddMedia: () => _pickAndUploadMedia(album),
                                   onEditTitle: () => _editAlbumTitle(album),
-                                  onOpenSettings: () => context.go(
-                                    '/album/${album.id}/settings',
-                                  ),
+                                  onOpenSettings: () =>
+                                      context.go('/album/${album.id}/settings'),
                                   onCopyLink: () => _copyLink(uploadUrl),
                                   onShareLink: () => Share.share(uploadUrl),
+                                  onExportZip: () => _exportZip(album),
                                   onOpenSlideshow: () {
                                     context.go('/slideshow/${album.slug}');
                                   },
@@ -422,9 +450,8 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                             onPublicAlbum: () => context.go('/a/${album.slug}'),
                             onSlideshow: () =>
                                 context.go('/slideshow/${album.slug}'),
-                            onSettings: () => context.go(
-                              '/album/${album.id}/settings',
-                            ),
+                            onSettings: () =>
+                                context.go('/album/${album.id}/settings'),
                           ),
                           Expanded(child: scrollView),
                         ],
@@ -765,21 +792,25 @@ class _AlbumMainPanel extends StatelessWidget {
   const _AlbumMainPanel({
     required this.album,
     required this.mediaBusy,
+    required this.exportBusy,
     required this.onAddMedia,
     required this.onEditTitle,
     required this.onOpenSettings,
     required this.onCopyLink,
     required this.onShareLink,
+    required this.onExportZip,
     required this.onOpenSlideshow,
   });
 
   final Album album;
   final bool mediaBusy;
+  final bool exportBusy;
   final VoidCallback onAddMedia;
   final VoidCallback onEditTitle;
   final VoidCallback onOpenSettings;
   final VoidCallback onCopyLink;
   final VoidCallback onShareLink;
+  final VoidCallback onExportZip;
   final VoidCallback onOpenSlideshow;
 
   @override
@@ -808,64 +839,67 @@ class _AlbumMainPanel extends StatelessWidget {
                 color: accent.mix(const Color(0xFF111116), 0.08),
               ),
               const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                album.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 31,
-                                  height: 1.02,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.8,
-                                  color: Color(0xFF15151A),
-                                ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            album.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 31,
+                              height: 1.02,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.8,
+                              color: Color(0xFF15151A),
                             ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: OutlinedButton(
-                                onPressed: onEditTitle,
-                                style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const Icon(Icons.edit_outlined, size: 18),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: OutlinedButton(
-                                onPressed: onOpenSettings,
-                                style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const Icon(Icons.settings_outlined, size: 18),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          description == null || description.isEmpty
-                              ? 'Your album is ready to receive guest memories.'
-                              : description,
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: OutlinedButton(
+                            onPressed: onEditTitle,
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Icon(Icons.edit_outlined, size: 18),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: OutlinedButton(
+                            onPressed: onOpenSettings,
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.settings_outlined,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description == null || description.isEmpty
+                          ? 'Your album is ready to receive guest memories.'
+                          : description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -919,32 +953,55 @@ class _AlbumMainPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniActionButton(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 520;
+              final children = [
+                _MiniActionButton(
                   icon: Icons.content_copy_rounded,
                   label: 'Copy link',
                   onPressed: onCopyLink,
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MiniActionButton(
+                _MiniActionButton(
                   icon: Icons.share_rounded,
                   label: 'Share link',
                   onPressed: onShareLink,
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MiniActionButton(
+                _MiniActionButton(
+                  icon: Icons.archive_outlined,
+                  label: exportBusy ? 'Exporting...' : 'Export ZIP',
+                  onPressed: exportBusy ? null : onExportZip,
+                ),
+                _MiniActionButton(
                   icon: Icons.slideshow_rounded,
                   label: 'Slideshow',
                   onPressed: onOpenSlideshow,
                 ),
-              ),
-            ],
+              ];
+
+              if (compact) {
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final child in children)
+                      SizedBox(
+                        width: (constraints.maxWidth - 10) / 2,
+                        child: child,
+                      ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    Expanded(child: children[i]),
+                    if (i != children.length - 1) const SizedBox(width: 10),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1193,9 +1250,12 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
 
   List<_AdminMediaItem> _filterMedia(List<_AdminMediaItem> items) {
     return switch (_tab) {
-      _AdminMemoriesTab.photos => items.where((e) => e.type == 'photo').toList(),
-      _AdminMemoriesTab.videos => items.where((e) => e.type == 'video').toList(),
-      _AdminMemoriesTab.audios => items.where((e) => e.type == 'audio').toList(),
+      _AdminMemoriesTab.photos =>
+        items.where((e) => e.type == 'photo').toList(),
+      _AdminMemoriesTab.videos =>
+        items.where((e) => e.type == 'video').toList(),
+      _AdminMemoriesTab.audios =>
+        items.where((e) => e.type == 'audio').toList(),
       _AdminMemoriesTab.notes => const <_AdminMediaItem>[],
     };
   }
@@ -1206,7 +1266,9 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return _DeleteMediaDialog(fileName: item.originalFileName ?? 'this file');
+        return _DeleteMediaDialog(
+          fileName: item.originalFileName ?? 'this file',
+        );
       },
     );
 
@@ -1477,7 +1539,9 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
                   );
                 }
 
-                final items = _filterMedia(snapshot.data ?? const <_AdminMediaItem>[]);
+                final items = _filterMedia(
+                  snapshot.data ?? const <_AdminMediaItem>[],
+                );
                 if (items.isEmpty) {
                   return const _EmptyMediaState();
                 }
@@ -1696,7 +1760,9 @@ class _DeleteNoteDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trimmed = message.trim();
-    final preview = trimmed.length > 90 ? '${trimmed.substring(0, 90)}…' : trimmed;
+    final preview = trimmed.length > 90
+        ? '${trimmed.substring(0, 90)}…'
+        : trimmed;
 
     return AlertDialog(
       title: const Text('Delete note?'),
@@ -1836,7 +1902,9 @@ class _AdminNoteCard extends StatelessWidget {
                       tooltip: note.isFeatured ? 'Unfeature' : 'Feature',
                       onPressed: busy ? null : onToggleFeatured,
                       icon: Icon(
-                        note.isFeatured ? Icons.star_rounded : Icons.star_border_rounded,
+                        note.isFeatured
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
                       ),
                     ),
                     const Spacer(),
@@ -2628,7 +2696,7 @@ class _MiniActionButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -3019,7 +3087,9 @@ class _AdminNotesRepository {
   Future<List<MemoryNote>> getAlbumNotes(String albumId) async {
     final rows = await _supabase
         .from('notes')
-        .select('id, album_id, guest_id, message, status, is_featured, is_hidden, created_at')
+        .select(
+          'id, album_id, guest_id, message, status, is_featured, is_hidden, created_at',
+        )
         .eq('album_id', albumId)
         .order('created_at', ascending: false);
 

@@ -37,15 +37,9 @@ class AppRouter {
       final isPublicAlbum = location.startsWith('/a/');
       final isSlideshow = location.startsWith('/slideshow/');
       final isPaymentSuccess = location == '/payment-success';
-      final isCreate = location == '/create';
 
       // Estas rutas deben poder abrir sin que el redirect las mande al login/dashboard.
       if (isPublicAlbum || isSlideshow || isPaymentSuccess) {
-        return null;
-      }
-
-      // `/create` debe conservar la URL incluso si requiere autenticación.
-      if (session == null && isCreate) {
         return null;
       }
 
@@ -69,12 +63,7 @@ class AppRouter {
         ),
       ),
       GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
-      GoRoute(
-        path: '/create',
-        builder: (_, __) {
-          return const CreateAlbumPage();
-        },
-      ),
+      GoRoute(path: '/create', builder: (_, __) => const CreateAlbumPage()),
       GoRoute(
         path: '/payment-success',
         builder: (_, state) {

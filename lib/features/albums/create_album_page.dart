@@ -28,10 +28,12 @@ class _CreateAlbumPageState extends State<CreateAlbumPage> {
   final _codeCtrl = TextEditingController();
   final _eventTypeLabelCtrl = TextEditingController();
   final _themeEmojiCtrl = TextEditingController();
-  ColorFillValue _themeColorFill =
-      const ColorFillValue.solid(Color(0xFF111827));
-  ColorFillValue _themeBackgroundFill =
-      const ColorFillValue.solid(Color(0xFFFFFFFF));
+  ColorFillValue _themeColorFill = const ColorFillValue.solid(
+    Color(0xFF111827),
+  );
+  ColorFillValue _themeBackgroundFill = const ColorFillValue.solid(
+    Color(0xFFFFFFFF),
+  );
 
   String _eventType = 'wedding';
   DateTime? _eventDate;
@@ -431,7 +433,8 @@ class _CreateAlbumCard extends StatelessWidget {
                 ),
               ),
               child: _PrimaryButton(
-                text: 'Continue to payment',
+                text: 'Create album',
+                icon: Icons.diamond_outlined,
                 loading: loading,
                 onPressed: onCreate,
               ),
@@ -763,11 +766,13 @@ class _BackButton extends StatelessWidget {
 class _PrimaryButton extends StatelessWidget {
   const _PrimaryButton({
     required this.text,
+    this.icon,
     required this.loading,
     required this.onPressed,
   });
 
   final String text;
+  final IconData? icon;
   final bool loading;
   final VoidCallback onPressed;
 
@@ -787,7 +792,17 @@ class _PrimaryButton extends StatelessWidget {
                   color: Colors.white,
                 ),
               )
-            : Text(text),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 10),
+                  ],
+                  Text(text),
+                ],
+              ),
       ),
     );
   }

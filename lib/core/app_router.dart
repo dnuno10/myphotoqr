@@ -44,6 +44,11 @@ class AppRouter {
         return null;
       }
 
+      // `/create` debe conservar la URL incluso si requiere autenticación.
+      if (session == null && isCreate) {
+        return null;
+      }
+
       if (session == null && !isLogin) {
         final next = Uri.encodeComponent(state.uri.toString());
         return '/login?next=$next';

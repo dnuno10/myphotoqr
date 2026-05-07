@@ -71,13 +71,14 @@ serve(async (req) => {
     const { data: album, error: albumError } = await adminSupabase
       .from("albums")
       .select(
-        "id, slug, title, guest_access_code_enabled, visibility, user_id, cover_image_url, banner_image_url",
+        "id, slug, title, guest_access_code_enabled, visibility, user_id, cover_image_url, banner_image_url, owner:users(auth_user_id)",
       )
       .eq("id", albumId)
       .single();
     if (albumError) throw albumError;
 
-    const isOwner = requestUserId != null && album.user_id === requestUserId;
+    const isOwner = requestUserId != null &&
+      album.owner?.auth_user_id === requestUserId;
 
     if (!albumSettings?.allow_guest_downloads && !isOwner) {
       return json({ error: "Downloads are disabled for this album." }, 403);

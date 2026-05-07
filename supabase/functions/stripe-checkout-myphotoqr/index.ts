@@ -1,4 +1,5 @@
 // supabase/functions/stripe-checkout/index.ts
+// supabase/functions/stripe-checkout-myphotoqr/index.ts
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@16.12.0?target=deno";

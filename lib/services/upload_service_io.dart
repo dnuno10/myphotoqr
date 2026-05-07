@@ -28,6 +28,14 @@ class UploadService {
 
   final _uuid = const Uuid();
 
+  Future<bool> hasAlbumAccess({required String albumId}) async {
+    final result = await supabase.rpc(
+      'has_album_access',
+      params: {'album_uuid': albumId},
+    );
+    return result == true;
+  }
+
   Future<Map<String, dynamic>> getOrCreateGuest({
     required String albumId,
     String? name,

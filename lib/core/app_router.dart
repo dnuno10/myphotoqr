@@ -31,6 +31,9 @@ class AppRouter {
     refreshListenable: GoRouterRefreshStream(supabase.auth.onAuthStateChange),
     redirect: (context, state) {
       final session = supabase.auth.currentSession;
+      final user = supabase.auth.currentUser;
+      final isOwnerSession =
+          session != null && (user?.email ?? '').trim().isNotEmpty;
       final location = state.matchedLocation;
 
       final isLogin = location == '/login';
@@ -43,12 +46,12 @@ class AppRouter {
         return null;
       }
 
-      if (session == null && !isLogin) {
+      if (!isOwnerSession && !isLogin) {
         final next = Uri.encodeComponent(state.uri.toString());
         return '/login?next=$next';
       }
 
-      if (session != null && isLogin) {
+      if (isOwnerSession && isLogin) {
         return _safeNextLocation(state) ?? '/';
       }
 

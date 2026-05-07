@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/supabase_client.dart';
 import '../../models/album.dart';
@@ -9,7 +10,9 @@ import '../../models/media_upload.dart';
 import '../../models/note.dart';
 import '../../models/slideshow_settings.dart';
 import '../../services/album_service.dart';
+import '../../services/guest_session_service.dart';
 import '../../services/slideshow_settings_service.dart';
+import '../../services/upload_service.dart';
 import '../../shared/ui/color_utils.dart';
 import '../../shared/ui/event_icons.dart';
 import '../../shared/widgets/error_view.dart';
@@ -29,13 +32,22 @@ class SlideshowPage extends StatefulWidget {
 class _SlideshowPageState extends State<SlideshowPage> {
   final _service = AlbumService();
   final _slideshowSettingsService = SlideshowSettingsService();
+  final _guestSessionService = GuestSessionService();
+  final _uploadService = UploadService();
+  final _focusNode = FocusNode();
 
   Album? _album;
   SlideshowSettings? _settings;
-  List<MediaUpload> _media = [];
-  List<MemoryNote> _notes = [];
+  bool _accessGranted = false;
+  bool _unlocking = false;
+  final _codeCtrl = TextEditingController();
+  final Map<String, MediaUpload> _mediaById = {};
+  final Map<String, MemoryNote> _notesById = {};
+  final List<_SlideContent> _queue = [];
   int _index = 0;
   Timer? _timer;
+  StreamSubscription<List<Map<String, dynamic>>>? _mediaSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _notesSub;
   Object? _error;
 
   @override
@@ -47,7 +59,21 @@ class _SlideshowPageState extends State<SlideshowPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _mediaSub?.cancel();
+    _notesSub?.cancel();
+    _focusNode.dispose();
+    _codeCtrl.dispose();
     super.dispose();
+  }
+
+  void _next() {
+    if (_queue.isEmpty) return;
+    setState(() => _index = (_index + 1) % _queue.length);
+  }
+
+  void _prev() {
+    if (_queue.isEmpty) return;
+    setState(() => _index = (_index - 1 + _queue.length) % _queue.length);
   }
 
   Future<void> _load() async {
@@ -57,72 +83,125 @@ class _SlideshowPageState extends State<SlideshowPage> {
           await _slideshowSettingsService.get(album.id) ??
           SlideshowSettings.defaults(album.id);
 
+      final requiresCode =
+          album.guestAccessCodeEnabled || album.visibility == 'code_protected';
+
+      bool granted = true;
+      if (requiresCode) {
+        await _guestSessionService.ensureSignedIn();
+        granted = await _uploadService.hasAlbumAccess(albumId: album.id);
+      }
+
+      if (!mounted) return;
       setState(() {
         _album = album;
         _settings = settings;
+        _accessGranted = granted;
       });
 
-      supabase
-          .from('media_uploads')
+      if (!granted) return;
+
+      _startSlideshow(album: album, settings: settings);
+    } catch (e) {
+      setState(() => _error = e);
+    }
+  }
+
+  void _startSlideshow({
+    required Album album,
+    required SlideshowSettings settings,
+  }) {
+    _timer?.cancel();
+    _mediaSub?.cancel();
+    _notesSub?.cancel();
+    _mediaById.clear();
+    _notesById.clear();
+    _queue.clear();
+    _index = 0;
+
+    _mediaSub = supabase
+        .from('media_uploads')
+        .stream(primaryKey: ['id'])
+        .eq('album_id', album.id)
+        .order('created_at', ascending: true)
+        .listen((rows) {
+          final media = rows.map((e) => MediaUpload.fromJson(e)).where((m) {
+            if (settings.onlyApprovedMedia &&
+                m.status.toLowerCase() != 'approved') {
+              return false;
+            }
+            if (m.isHidden) return false;
+            if (settings.onlyFeaturedMedia && !m.isFeatured) return false;
+
+            if (m.type == 'photo') return settings.showPhotos;
+            if (m.type == 'video') return settings.showVideos;
+            if (m.type == 'audio') return settings.showVideos;
+
+            return true;
+          }).toList();
+
+          if (!mounted) return;
+          setState(() {
+            _applyMediaSnapshot(media);
+          });
+        });
+
+    if (settings.showNotes) {
+      _notesSub = supabase
+          .from('notes')
           .stream(primaryKey: ['id'])
           .eq('album_id', album.id)
-          .order('created_at', ascending: false)
+          .order('created_at', ascending: true)
           .listen((rows) {
-            final media = rows.map((e) => MediaUpload.fromJson(e)).where((m) {
+            final notes = rows.map((e) => MemoryNote.fromJson(e)).where((n) {
               if (settings.onlyApprovedMedia &&
-                  m.status.toLowerCase() != 'approved') {
+                  n.status.toLowerCase() != 'approved') {
                 return false;
               }
-              if (m.isHidden) return false;
-              if (settings.onlyFeaturedMedia && !m.isFeatured) return false;
-
-              if (m.type == 'photo') return settings.showPhotos;
-              if (m.type == 'video') return settings.showVideos;
-              if (m.type == 'audio') return settings.showVideos;
-
+              if (n.isHidden) return false;
+              if (settings.onlyFeaturedMedia && !n.isFeatured) return false;
               return true;
             }).toList();
 
             if (!mounted) return;
-            setState(() {
-              _media = media;
-              if (_index >= _media.length) _index = 0;
-            });
+            setState(() => _applyNotesSnapshot(notes));
           });
+    }
 
-      if (settings.showNotes) {
-        supabase
-            .from('notes')
-            .stream(primaryKey: ['id'])
-            .eq('album_id', album.id)
-            .order('created_at', ascending: false)
-            .listen((rows) {
-              final notes = rows.map((e) => MemoryNote.fromJson(e)).where((n) {
-                if (settings.onlyApprovedMedia &&
-                    n.status.toLowerCase() != 'approved') {
-                  return false;
-                }
-                if (n.isHidden) return false;
-                if (settings.onlyFeaturedMedia && !n.isFeatured) return false;
-                return true;
-              }).toList();
+    final interval = settings.intervalSeconds <= 0
+        ? 5
+        : settings.intervalSeconds;
+    _timer = Timer.periodic(Duration(seconds: interval), (_) {
+      if (!mounted) return;
+      if (_queue.isEmpty) return;
+      setState(() => _index = (_index + 1) % _queue.length);
+    });
+  }
 
-              if (!mounted) return;
-              setState(() => _notes = notes);
-            });
-      }
+  Future<void> _unlock(Album album) async {
+    if (_unlocking) return;
+    final code = _codeCtrl.text.trim();
+    if (code.length < 4) return;
 
-      final interval = settings.intervalSeconds <= 0
-          ? 5
-          : settings.intervalSeconds;
-      _timer = Timer.periodic(Duration(seconds: interval), (_) {
-        if (!mounted) return;
-        final items = _buildItems(settings);
-        if (items.isEmpty) return;
-        setState(() => _index = (_index + 1) % items.length);
-      });
+    setState(() => _unlocking = true);
+    try {
+      await _guestSessionService.ensureSignedIn();
+      final ok = await _uploadService.verifyAccessCode(
+        albumId: album.id,
+        code: code,
+      );
+      if (!ok) throw Exception('Incorrect access code.');
+
+      if (!mounted) return;
+      setState(() => _accessGranted = true);
+
+      final settings = _settings ?? SlideshowSettings.defaults(album.id);
+      _startSlideshow(album: album, settings: settings);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _unlocking = false);
     }
   }
 
@@ -137,8 +216,60 @@ class _SlideshowPageState extends State<SlideshowPage> {
 
     final album = _album!;
     final settings = _settings ?? SlideshowSettings.defaults(album.id);
+    final requiresCode =
+        album.guestAccessCodeEnabled || album.visibility == 'code_protected';
 
-    final items = _buildItems(settings);
+    if (requiresCode && !_accessGranted) {
+      final hint = (album.guestAccessCodeHint ?? '').trim();
+      return Scaffold(
+        backgroundColor: (settings.backgroundColor).toColorOr(Colors.black),
+        body: Center(
+          child: SaasSurface(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const LogoMark(size: 56),
+                const SizedBox(height: 14),
+                const Text(
+                  'Protected slideshow',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hint.isEmpty
+                      ? 'Enter the access code to start the slideshow.'
+                      : hint,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _codeCtrl,
+                  enabled: !_unlocking,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    if (!_unlocking) _unlock(album);
+                  },
+                  decoration: const InputDecoration(labelText: 'Access code'),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: FilledButton(
+                    onPressed: _unlocking ? null : () => _unlock(album),
+                    child: Text(_unlocking ? 'Verifying...' : 'Enter'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final items = _queue;
     final safeIndex = items.isEmpty ? 0 : (_index >= items.length ? 0 : _index);
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 600;
@@ -182,6 +313,33 @@ class _SlideshowPageState extends State<SlideshowPage> {
           : Stack(
               fit: StackFit.expand,
               children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _focusNode.requestFocus(),
+                  child: Focus(
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    onKeyEvent: (_, event) {
+                      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                      if (items.isEmpty) return KeyEventResult.ignored;
+
+                      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                        _next();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                        _prev();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.escape) {
+                        Navigator.maybePop(context);
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: const SizedBox.expand(),
+                  ),
+                ),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 850),
                   transitionBuilder: (child, animation) {
@@ -208,6 +366,69 @@ class _SlideshowPageState extends State<SlideshowPage> {
                     item: items[safeIndex],
                     textColor: (settings.textColor).toColorOr(Colors.white),
                     showCaptions: settings.showCaptions,
+                  ),
+                ),
+                Positioned(
+                  top: hudPad,
+                  right: hudPad,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(.35),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withOpacity(.12)),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Salir del slideshow',
+                      onPressed: () => Navigator.maybePop(context),
+                      icon: const Icon(Icons.close_rounded),
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: hudPad,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(.28),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.12),
+                        ),
+                      ),
+                      child: IconButton(
+                        tooltip: 'Anterior',
+                        onPressed: _prev,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        iconSize: compact ? 42 : 54,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: hudPad,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(.28),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.12),
+                        ),
+                      ),
+                      child: IconButton(
+                        tooltip: 'Siguiente',
+                        onPressed: _next,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        iconSize: compact ? 42 : 54,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
                 Positioned(
@@ -249,15 +470,49 @@ class _SlideshowPageState extends State<SlideshowPage> {
     );
   }
 
-  List<_SlideContent> _buildItems(SlideshowSettings settings) {
-    final items = <_SlideContent>[
-      for (final m in _media) _SlideContent.media(m),
-      if (settings.showNotes)
-        for (final n in _notes) _SlideContent.note(n),
-    ];
+  void _applyMediaSnapshot(List<MediaUpload> media) {
+    final incomingIds = <String>{};
+    for (final m in media) {
+      incomingIds.add(m.id);
+      _mediaById[m.id] = m;
+    }
+    _mediaById.removeWhere((id, _) => !incomingIds.contains(id));
+    _reconcileQueue();
+  }
 
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return items;
+  void _applyNotesSnapshot(List<MemoryNote> notes) {
+    final incomingIds = <String>{};
+    for (final n in notes) {
+      incomingIds.add(n.id);
+      _notesById[n.id] = n;
+    }
+    _notesById.removeWhere((id, _) => !incomingIds.contains(id));
+    _reconcileQueue();
+  }
+
+  void _reconcileQueue() {
+    final allowedIds = <String>{..._mediaById.keys, ..._notesById.keys};
+
+    // Remove items that no longer exist / no longer match filters.
+    _queue.removeWhere((item) => !allowedIds.contains(item.id));
+
+    final queuedIds = _queue.map((e) => e.id).toSet();
+
+    // Append new items at the end (real-time without re-sorting).
+    final newItems = <_SlideContent>[
+      for (final m in _mediaById.values)
+        if (!queuedIds.contains(m.id)) _SlideContent.media(m),
+      for (final n in _notesById.values)
+        if (!queuedIds.contains(n.id)) _SlideContent.note(n),
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    _queue.addAll(newItems);
+
+    if (_queue.isEmpty) {
+      _index = 0;
+    } else if (_index >= _queue.length) {
+      _index = 0;
+    }
   }
 }
 
@@ -367,6 +622,7 @@ class _SlideContent {
   final MemoryNote? note;
 
   String get key => kind == _SlideKind.media ? media!.id : note!.id;
+  String get id => key;
 
   DateTime get createdAt =>
       kind == _SlideKind.media ? media!.createdAt : note!.createdAt;

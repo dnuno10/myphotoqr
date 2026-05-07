@@ -8,6 +8,7 @@ import '../../models/album.dart';
 import '../../models/album_settings.dart';
 import '../../services/album_service.dart';
 import '../../services/album_settings_service.dart';
+import '../../services/guest_session_service.dart';
 import '../../services/upload_service.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/ui/event_theme.dart';
@@ -46,6 +47,7 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
 
   final _albumService = AlbumService();
   final _albumSettingsService = AlbumSettingsService();
+  final _guestSessionService = GuestSessionService();
   final _uploadService = UploadService();
 
   late Future<_UploadAlbumBundle> _future;
@@ -102,6 +104,15 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
       _allowPhotos = true;
     }
 
+    final requiresCode =
+        album.guestAccessCodeEnabled || album.visibility == 'code_protected';
+    if (requiresCode) {
+      await _guestSessionService.ensureSignedIn();
+      _accessGranted = await _uploadService.hasAlbumAccess(albumId: album.id);
+    } else {
+      _accessGranted = true;
+    }
+
     return _UploadAlbumBundle(album: album, settings: settings);
   }
 
@@ -119,6 +130,7 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     setState(() => _loading = true);
 
     try {
+      await _guestSessionService.ensureSignedIn();
       final ok = await _uploadService.verifyAccessCode(
         albumId: album.id,
         code: _codeCtrl.text.trim(),
@@ -230,7 +242,7 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
         albumId: album.id,
         name: name,
         email: email,
-        accessCodeUsed: album.guestAccessCodeEnabled,
+        accessCodeUsed: album.guestAccessCodeEnabled && _accessGranted,
       );
 
       if (_kind == UploadKind.media) {

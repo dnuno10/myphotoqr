@@ -462,6 +462,11 @@ class _DashboardMetrics extends StatelessWidget {
       (previous, album) => previous + album.totalVideos,
     );
 
+    final totalAudios = albums.fold<int>(
+      0,
+      (previous, album) => previous + album.totalAudios,
+    );
+
     final totalNotes = albums.fold<int>(
       0,
       (previous, album) => previous + album.totalNotes,
@@ -487,6 +492,11 @@ class _DashboardMetrics extends StatelessWidget {
         title: 'Videos',
         value: totalVideos.toString(),
         icon: Icons.videocam_outlined,
+      ),
+      _MetricData(
+        title: 'Audios',
+        value: totalAudios.toString(),
+        icon: Icons.audiotrack_outlined,
       ),
       _MetricData(
         title: 'Notes',
@@ -755,6 +765,12 @@ class _AlbumCard extends StatelessWidget {
                     child: _AlbumMiniStat(
                       label: 'Videos',
                       value: album.totalVideos.toString(),
+                    ),
+                  ),
+                  Expanded(
+                    child: _AlbumMiniStat(
+                      label: 'Audios',
+                      value: album.totalAudios.toString(),
                     ),
                   ),
                   Expanded(

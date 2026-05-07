@@ -9,7 +9,9 @@
 --
 -- This migration is safe to re-run.
 
-create extension if not exists pgcrypto;
+-- Supabase typically installs extensions under the `extensions` schema.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create schema if not exists private;
 
@@ -30,9 +32,9 @@ create or replace function public.hash_guest_access_code(code text)
 returns text
 language sql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = ''
 as $$
-  select crypt(code, gen_salt('bf', 10));
+  select extensions.crypt(code, extensions.gen_salt('bf', 10));
 $$;
 
 revoke all on function public.hash_guest_access_code(text) from public;
@@ -42,7 +44,7 @@ create or replace function public.is_album_owner(album_uuid uuid)
 returns boolean
 language sql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = ''
 as $$
   select exists (
     select 1
@@ -60,7 +62,7 @@ create or replace function public.album_requires_access_code(album_uuid uuid)
 returns boolean
 language sql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = ''
 as $$
   select coalesce(a.guest_access_code_enabled, false)
       or coalesce(a.visibility, 'public') = 'code_protected'
@@ -76,7 +78,7 @@ create or replace function public.has_album_access(album_uuid uuid)
 returns boolean
 language plpgsql
 security definer
-set search_path = pg_catalog, public, private, auth, pg_temp
+set search_path = ''
 as $$
 declare
   requires_code boolean;
@@ -115,7 +117,7 @@ create or replace function public.verify_guest_access_code(
 returns boolean
 language plpgsql
 security definer
-set search_path = pg_catalog, public, private, auth, pg_temp
+set search_path = ''
 as $$
 declare
   requires_code boolean;
@@ -139,12 +141,12 @@ begin
     return false;
   end if;
 
-  ok := crypt(code, code_hash) = code_hash;
+  ok := extensions.crypt(code, code_hash) = code_hash;
 
   -- Persist access for authenticated (including anonymous) sessions.
   if ok and auth.uid() is not null then
     insert into private.album_access_grants (album_id, auth_user_id, last_validated_at)
-    values (album_uuid, auth.uid(), now())
+    values (album_uuid, auth.uid(), pg_catalog.now())
     on conflict (album_id, auth_user_id)
     do update set last_validated_at = excluded.last_validated_at;
   end if;
@@ -155,4 +157,3 @@ $$;
 
 revoke all on function public.verify_guest_access_code(uuid, text) from public;
 grant execute on function public.verify_guest_access_code(uuid, text) to anon, authenticated, service_role;
-

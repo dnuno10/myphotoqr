@@ -915,32 +915,50 @@ class _AlbumMainPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _CompactStat(
-                  label: 'Photos',
-                  value: '${album.totalPhotos}',
-                  icon: Icons.photo_outlined,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _CompactStat(
-                  label: 'Videos',
-                  value: '${album.totalVideos}',
-                  icon: Icons.videocam_outlined,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _CompactStat(
-                  label: 'Notes',
-                  value: '${album.totalNotes}',
-                  icon: Icons.notes_rounded,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final isCompact = width < 520;
+              final itemWidth = isCompact ? (width - 10) / 2 : (width - 30) / 4;
+
+              Widget box(_CompactStat stat) =>
+                  SizedBox(width: itemWidth, child: stat);
+
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  box(
+                    _CompactStat(
+                      label: 'Photos',
+                      value: '${album.totalPhotos}',
+                      icon: Icons.photo_outlined,
+                    ),
+                  ),
+                  box(
+                    _CompactStat(
+                      label: 'Videos',
+                      value: '${album.totalVideos}',
+                      icon: Icons.videocam_outlined,
+                    ),
+                  ),
+                  box(
+                    _CompactStat(
+                      label: 'Audios',
+                      value: '${album.totalAudios}',
+                      icon: Icons.audiotrack_outlined,
+                    ),
+                  ),
+                  box(
+                    _CompactStat(
+                      label: 'Notes',
+                      value: '${album.totalNotes}',
+                      icon: Icons.notes_rounded,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -2990,12 +3008,17 @@ class _AdminMediaRepository {
       return (row as Map<String, dynamic>)['type'] == 'video';
     }).length;
 
+    final audios = media.where((row) {
+      return (row as Map<String, dynamic>)['type'] == 'audio';
+    }).length;
+
     await _supabase
         .from('albums')
         .update({
           'total_uploads': media.length,
           'total_photos': photos,
           'total_videos': videos,
+          'total_audios': audios,
           'total_notes': notes.length,
           'updated_at': DateTime.now().toIso8601String(),
         })

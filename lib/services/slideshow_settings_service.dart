@@ -39,10 +39,13 @@ class SlideshowSettingsService {
   }) async {
     await supabase
         .from('slideshow_settings')
-        .update({
-          ...settings.toUpdateJson(),
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('album_id', albumId);
+        .upsert(
+          {
+            'album_id': albumId,
+            ...settings.toUpdateJson(),
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+          onConflict: 'album_id',
+        );
   }
 }

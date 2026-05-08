@@ -736,6 +736,16 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
             label: Text(_loading ? 'Uploading...' : 'Upload'),
           ),
         ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => context.go('/a/${album.slug}'),
+            icon: const Icon(Icons.photo_library_outlined, size: 18),
+            label: const Text('View album'),
+          ),
+        ),
       ],
     );
   }

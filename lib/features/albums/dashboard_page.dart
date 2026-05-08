@@ -35,10 +35,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  void _buyAlbum() {
-    context.go('/create');
-  }
-
   Widget _buildDashboardContent({required bool compact}) {
     final left = compact ? 16.0 : 22.0;
     final right = compact ? 16.0 : 34.0;
@@ -65,7 +61,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: _DashboardHeader(
                   albums: albums,
                   onCreateAlbum: () => context.go('/create'),
-                  onBuyAlbum: _buyAlbum,
                 ),
               ),
             ),
@@ -78,9 +73,7 @@ class _DashboardPageState extends State<DashboardPage> {
             if (albums.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(
-                  child: _EmptyAlbumsCard(onBuyAlbum: _buyAlbum),
-                ),
+                child: Center(child: const _EmptyAlbumsCard()),
               )
             else ...[
               SliverToBoxAdapter(
@@ -95,13 +88,12 @@ class _DashboardPageState extends State<DashboardPage> {
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(left, 0, right, 24),
                 sliver: SliverGrid.builder(
-                  gridDelegate:
-                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 380,
-                        mainAxisExtent: 222,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 380,
+                    mainAxisExtent: 222,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
                   itemCount: albums.length,
                   itemBuilder: (context, index) {
                     final album = albums[index];
@@ -134,7 +126,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   child: _DashboardMobileDrawer(
                     onDashboard: () => context.go('/'),
                     onCreateAlbum: () => context.go('/create'),
-                    onBuyAlbum: _buyAlbum,
                     onSignOut: _signOut,
                   ),
                 )
@@ -147,7 +138,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       _DashboardSidebar(
                         onDashboard: () => context.go('/'),
                         onCreateAlbum: () => context.go('/create'),
-                        onBuyAlbum: _buyAlbum,
                         onSignOut: _signOut,
                       ),
                       Expanded(child: _buildDashboardContent(compact: false)),
@@ -164,13 +154,11 @@ class _DashboardMobileDrawer extends StatelessWidget {
   const _DashboardMobileDrawer({
     required this.onDashboard,
     required this.onCreateAlbum,
-    required this.onBuyAlbum,
     required this.onSignOut,
   });
 
   final VoidCallback onDashboard;
   final VoidCallback onCreateAlbum;
-  final VoidCallback onBuyAlbum;
   final Future<void> Function() onSignOut;
 
   @override
@@ -209,14 +197,6 @@ class _DashboardMobileDrawer extends StatelessWidget {
               onCreateAlbum();
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.shopping_bag_outlined),
-            title: const Text('Buy album'),
-            onTap: () {
-              Navigator.of(context).pop();
-              onBuyAlbum();
-            },
-          ),
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.logout_rounded),
@@ -236,13 +216,11 @@ class _DashboardSidebar extends StatelessWidget {
   const _DashboardSidebar({
     required this.onDashboard,
     required this.onCreateAlbum,
-    required this.onBuyAlbum,
     required this.onSignOut,
   });
 
   final VoidCallback onDashboard;
   final VoidCallback onCreateAlbum;
-  final VoidCallback onBuyAlbum;
   final VoidCallback onSignOut;
 
   @override
@@ -272,12 +250,6 @@ class _DashboardSidebar extends StatelessWidget {
             icon: Icons.add_rounded,
             tooltip: 'Create album',
             onTap: onCreateAlbum,
-          ),
-          const SizedBox(height: 12),
-          _SidebarButton(
-            icon: Icons.shopping_bag_outlined,
-            tooltip: 'Buy album',
-            onTap: onBuyAlbum,
           ),
           const Spacer(),
           _SidebarButton(
@@ -340,15 +312,10 @@ class _SidebarButton extends StatelessWidget {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({
-    required this.albums,
-    required this.onCreateAlbum,
-    required this.onBuyAlbum,
-  });
+  const _DashboardHeader({required this.albums, required this.onCreateAlbum});
 
   final List<Album> albums;
   final VoidCallback onCreateAlbum;
-  final VoidCallback onBuyAlbum;
 
   @override
   Widget build(BuildContext context) {
@@ -399,22 +366,12 @@ class _DashboardHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                width: 156,
-                height: 48,
-                child: _SecondaryButton(
-                  text: 'Create draft',
-                  icon: Icons.edit_outlined,
-                  onPressed: onCreateAlbum,
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 156,
+                width: 176,
                 height: 48,
                 child: _PrimaryButton(
-                  text: 'Buy album',
-                  icon: Icons.shopping_bag_outlined,
-                  onPressed: onBuyAlbum,
+                  text: 'Create album',
+                  icon: Icons.add_rounded,
+                  onPressed: onCreateAlbum,
                 ),
               ),
             ],
@@ -624,9 +581,7 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _EmptyAlbumsCard extends StatelessWidget {
-  const _EmptyAlbumsCard({required this.onBuyAlbum});
-
-  final VoidCallback onBuyAlbum;
+  const _EmptyAlbumsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -670,9 +625,9 @@ class _EmptyAlbumsCard extends StatelessWidget {
               width: double.infinity,
               height: 48,
               child: _PrimaryButton(
-                text: 'Buy album',
-                icon: Icons.shopping_bag_outlined,
-                onPressed: onBuyAlbum,
+                text: 'Create album',
+                icon: Icons.add_rounded,
+                onPressed: () => context.go('/create'),
               ),
             ),
           ],
@@ -911,35 +866,6 @@ class _PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: onPressed,
-      child: icon == null
-          ? Text(text)
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18),
-                const SizedBox(width: 8),
-                Text(text),
-              ],
-            ),
-    );
-  }
-}
-
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({
-    required this.text,
-    required this.onPressed,
-    this.icon,
-  });
-
-  final String text;
-  final VoidCallback onPressed;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
       onPressed: onPressed,
       child: icon == null
           ? Text(text)

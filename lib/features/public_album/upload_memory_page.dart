@@ -10,6 +10,7 @@ import '../../services/album_service.dart';
 import '../../services/album_settings_service.dart';
 import '../../services/guest_session_service.dart';
 import '../../services/upload_service.dart';
+import '../../shared/media_duration/media_duration.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/ui/event_theme.dart';
 import '../../shared/ui/color_fill.dart';
@@ -28,6 +29,10 @@ class UploadMemoryPage extends StatefulWidget {
 }
 
 class _UploadMemoryPageState extends State<UploadMemoryPage> {
+  static const int _maxFilesPerBatch = 20;
+  static const Duration _maxVideoDuration = Duration(seconds: 10);
+  static const Duration _maxAudioDuration = Duration(minutes: 2);
+
   static const _photoExtensions = [
     'jpg',
     'jpeg',
@@ -60,6 +65,8 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
 
   bool _accessGranted = false;
   bool _loading = false;
+  bool _showUploadDialog = false;
+  final ValueNotifier<String> _uploadProgressText = ValueNotifier<String>('');
   List<PlatformFile> _files = [];
   UploadKind _kind = UploadKind.media;
   bool _allowPhotos = true;
@@ -123,6 +130,7 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     _codeCtrl.dispose();
     _captionCtrl.dispose();
     _noteCtrl.dispose();
+    _uploadProgressText.dispose();
     super.dispose();
   }
 
@@ -171,6 +179,12 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     if (result == null) return;
 
     final validFiles = result.files.where(_isAllowedMediaFile).toList();
+    if (validFiles.length > _maxFilesPerBatch) {
+      _showError(
+        'You can upload up to $_maxFilesPerBatch files at a time. Keeping the first $_maxFilesPerBatch.',
+      );
+    }
+    final limitedFiles = validFiles.take(_maxFilesPerBatch).toList();
 
     final invalidFiles = result.files
         .where((file) => !_isAllowedMediaFile(file))
@@ -183,9 +197,9 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
       );
     }
 
-    if (validFiles.isEmpty) return;
+    if (limitedFiles.isEmpty) return;
 
-    setState(() => _files = validFiles);
+    setState(() => _files = limitedFiles);
   }
 
   Future<void> _submit(Album album) async {
@@ -225,6 +239,10 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     }
 
     if (_kind == UploadKind.media) {
+      if (_files.length > _maxFilesPerBatch) {
+        _showError('You can upload up to $_maxFilesPerBatch files at a time.');
+        return;
+      }
       final maxBytes = _maxFileSizeMb * 1024 * 1024;
       final tooBig = _files.where((f) => f.size > maxBytes).toList();
       if (tooBig.isNotEmpty) {
@@ -235,7 +253,63 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
       }
     }
 
+    if (_kind == UploadKind.media) {
+      setState(() {
+        _loading = true;
+        _uploadProgressText.value = 'Checking files...';
+      });
+      try {
+        final durationIssues = await _validateDurations(_files);
+        if (durationIssues != null) {
+          _showError(durationIssues);
+          return;
+        }
+      } catch (e) {
+        _showError(e);
+        return;
+      } finally {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _uploadProgressText.value = 'Uploading files...';
+          });
+        }
+      }
+    }
+
     setState(() => _loading = true);
+    if (_kind == UploadKind.media && mounted) {
+      _showUploadDialog = true;
+      _uploadProgressText.value = 'Uploading files... 0/${_files.length}';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_showUploadDialog) return;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => WillPopScope(
+            onWillPop: () async => false,
+            child: AlertDialog(
+              content: ValueListenableBuilder<String>(
+                valueListenable: _uploadProgressText,
+                builder: (context, value, _) {
+                  return Row(
+                    children: [
+                      const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.6),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(child: Text(value)),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      });
+    }
 
     try {
       final guest = await _uploadService.getOrCreateGuest(
@@ -249,15 +323,12 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
         final status = (_moderationEnabled && !_autoApproveUploads)
             ? 'pending'
             : 'approved';
-        for (final file in _files) {
-          await _uploadService.uploadMedia(
-            albumId: album.id,
-            guestId: guest['id'],
-            pickedFile: file,
-            caption: _captionCtrl.text.trim(),
-            status: status,
-          );
-        }
+        await _uploadFilesInParallel(
+          albumId: album.id,
+          guestId: guest['id'].toString(),
+          files: _files,
+          status: status,
+        );
       }
 
       if (_kind == UploadKind.note) {
@@ -291,8 +362,89 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     } catch (e) {
       _showError(e);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _showUploadDialog = false;
+        });
+      }
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     }
+  }
+
+  Future<String?> _validateDurations(List<PlatformFile> files) async {
+    final tooLongVideos = <String>[];
+    final tooLongAudios = <String>[];
+
+    for (final file in files) {
+      final mimeType = lookupMimeType(file.name) ?? '';
+      final extension = (file.extension ?? '').toLowerCase().trim();
+      final isVideo =
+          mimeType.startsWith('video/') || _videoExtensions.contains(extension);
+      final isAudio =
+          mimeType.startsWith('audio/') || _audioExtensions.contains(extension);
+
+      if (!isVideo && !isAudio) continue;
+
+      final duration = await readPickedMediaDuration(file);
+      if (duration == null) continue;
+
+      if (isVideo && duration > _maxVideoDuration) {
+        tooLongVideos.add(file.name);
+      }
+      if (isAudio && duration > _maxAudioDuration) {
+        tooLongAudios.add(file.name);
+      }
+    }
+
+    final parts = <String>[];
+    if (tooLongVideos.isNotEmpty) {
+      parts.add(
+        'Videos must be ${_maxVideoDuration.inSeconds}s or less. Remove: ${tooLongVideos.join(', ')}',
+      );
+    }
+    if (tooLongAudios.isNotEmpty) {
+      parts.add(
+        'Audio must be ${_maxAudioDuration.inMinutes} minutes or less. Remove: ${tooLongAudios.join(', ')}',
+      );
+    }
+    if (parts.isEmpty) return null;
+    return parts.join('\n');
+  }
+
+  Future<void> _uploadFilesInParallel({
+    required String albumId,
+    required String guestId,
+    required List<PlatformFile> files,
+    required String status,
+  }) async {
+    // Keep concurrency modest to avoid browser/network throttling.
+    const concurrency = 3;
+    var nextIndex = 0;
+    var done = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final index = nextIndex;
+        nextIndex += 1;
+        if (index >= files.length) return;
+        final file = files[index];
+        await _uploadService.uploadMedia(
+          albumId: albumId,
+          guestId: guestId,
+          pickedFile: file,
+          caption: _captionCtrl.text.trim(),
+          status: status,
+        );
+        done += 1;
+        _uploadProgressText.value = 'Uploading files... $done/${files.length}';
+      }
+    }
+
+    final workers = List.generate(concurrency, (_) => worker());
+    await Future.wait(workers);
   }
 
   bool _isAllowedMediaFile(PlatformFile file) {

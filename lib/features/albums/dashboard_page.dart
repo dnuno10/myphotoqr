@@ -226,9 +226,9 @@ class _DashboardSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 76,
+      width: 200,
       margin: const EdgeInsets.all(14),
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -242,6 +242,7 @@ class _DashboardSidebar extends StatelessWidget {
           _SidebarButton(
             icon: Icons.dashboard_rounded,
             tooltip: 'Dashboard',
+            label: 'Dashboard',
             active: true,
             onTap: onDashboard,
           ),
@@ -249,12 +250,14 @@ class _DashboardSidebar extends StatelessWidget {
           _SidebarButton(
             icon: Icons.add_rounded,
             tooltip: 'Create album',
+            label: 'Create album',
             onTap: onCreateAlbum,
           ),
           const Spacer(),
           _SidebarButton(
             icon: Icons.logout_rounded,
             tooltip: 'Sign out',
+            label: 'Sign out',
             onTap: onSignOut,
           ),
         ],
@@ -267,12 +270,14 @@ class _SidebarButton extends StatelessWidget {
   const _SidebarButton({
     required this.icon,
     required this.tooltip,
+    required this.label,
     required this.onTap,
     this.active = false,
   });
 
   final IconData icon;
   final String tooltip;
+  final String label;
   final VoidCallback onTap;
   final bool active;
 
@@ -284,7 +289,7 @@ class _SidebarButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
         onTap: onTap,
         child: SizedBox(
-          width: 48,
+          width: double.infinity,
           height: 44,
           child: Row(
             children: [
@@ -292,7 +297,7 @@ class _SidebarButton extends StatelessWidget {
                 duration: const Duration(milliseconds: 180),
                 width: 3,
                 height: active ? 22 : 0,
-                margin: const EdgeInsets.only(left: 4, right: 9),
+                margin: const EdgeInsets.only(left: 4, right: 10),
                 decoration: BoxDecoration(
                   color: active ? Colors.black : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
@@ -302,6 +307,20 @@ class _SidebarButton extends StatelessWidget {
                 icon,
                 size: 22,
                 color: active ? Colors.black : const Color(0xFF6A6A74),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: active ? Colors.black : const Color(0xFF6A6A74),
+                  ),
+                ),
               ),
             ],
           ),

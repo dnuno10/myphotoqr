@@ -1070,7 +1070,9 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                       onSelected: (value) {
                         if (value == 'guest') context.go('/a/${album.slug}');
                         if (value == 'slideshow') {
-                          context.go('/slideshow/${album.slug}');
+                          context.push(
+                            '/slideshow/${album.slug}?next=/album/${album.id}/settings',
+                          );
                         }
                       },
                       itemBuilder: (context) {
@@ -1097,8 +1099,9 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                       _Sidebar(
                         onBack: () => context.go('/album/${album.id}'),
                         onGuestPage: () => context.go('/a/${album.slug}'),
-                        onSlideshow: () =>
-                            context.go('/slideshow/${album.slug}'),
+                        onSlideshow: () => context.push(
+                          '/slideshow/${album.slug}?next=/album/${album.id}/settings',
+                        ),
                       ),
                       Expanded(child: listView),
                     ],

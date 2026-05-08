@@ -97,8 +97,10 @@ class AppRouter {
       ),
       GoRoute(
         path: '/slideshow/:slug',
-        builder: (_, state) =>
-            SlideshowPage(slug: state.pathParameters['slug']!),
+        builder: (_, state) => SlideshowPage(
+          slug: state.pathParameters['slug']!,
+          nextLocation: state.uri.queryParameters['next'],
+        ),
       ),
     ],
   );

@@ -22,9 +22,10 @@ import '../../shared/widgets/logo_mark.dart';
 import '../../shared/widgets/saas_surface.dart';
 
 class SlideshowPage extends StatefulWidget {
-  const SlideshowPage({super.key, required this.slug});
+  const SlideshowPage({super.key, required this.slug, this.nextLocation});
 
   final String slug;
+  final String? nextLocation;
 
   @override
   State<SlideshowPage> createState() => _SlideshowPageState();
@@ -83,7 +84,16 @@ class _SlideshowPageState extends State<SlideshowPage> {
       Navigator.of(context).pop();
       return;
     }
-    context.go('/a/$slug');
+
+    final next = (widget.nextLocation ?? '').trim();
+    if (next.isNotEmpty && next.startsWith('/')) {
+      context.go(next);
+      return;
+    }
+
+    final user = supabase.auth.currentUser;
+    final isOwnerSession = (user?.email ?? '').trim().isNotEmpty;
+    context.go(isOwnerSession ? '/' : '/a/$slug');
   }
 
   Future<void> _load() async {

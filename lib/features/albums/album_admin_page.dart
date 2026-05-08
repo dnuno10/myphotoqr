@@ -358,7 +358,9 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                   onShareLink: () => Share.share(uploadUrl),
                                   onExportZip: () => _exportZip(album),
                                   onOpenSlideshow: () {
-                                    context.go('/slideshow/${album.slug}');
+                                    context.push(
+                                      '/slideshow/${album.slug}?next=/album/${album.id}',
+                                    );
                                   },
                                 ),
                                 const SizedBox(height: 18),
@@ -393,7 +395,9 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                                   onShareLink: () => Share.share(uploadUrl),
                                   onExportZip: () => _exportZip(album),
                                   onOpenSlideshow: () {
-                                    context.go('/slideshow/${album.slug}');
+                                    context.push(
+                                      '/slideshow/${album.slug}?next=/album/${album.id}',
+                                    );
                                   },
                                 ),
                               ),
@@ -448,8 +452,9 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
                           _AlbumSidebar(
                             onDashboard: () => context.go('/'),
                             onPublicAlbum: () => context.go('/a/${album.slug}'),
-                            onSlideshow: () =>
-                                context.go('/slideshow/${album.slug}'),
+                            onSlideshow: () => context.push(
+                              '/slideshow/${album.slug}?next=/album/${album.id}',
+                            ),
                             onSettings: () =>
                                 context.go('/album/${album.id}/settings'),
                           ),

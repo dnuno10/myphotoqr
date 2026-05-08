@@ -270,6 +270,15 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
         return;
       }
     }
+    if (_codeProtected &&
+        !album.guestAccessCodeEnabled &&
+        _accessCodeCtrl.text.trim().isEmpty) {
+      context.showTopRightSnackBar(
+        'Enter a new access code to enable protection.',
+        type: ToastType.error,
+      );
+      return;
+    }
 
     setState(() => _saving = true);
 

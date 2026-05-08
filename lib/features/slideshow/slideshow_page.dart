@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/supabase_client.dart';
 import '../../models/album.dart';
@@ -74,6 +75,15 @@ class _SlideshowPageState extends State<SlideshowPage> {
   void _prev() {
     if (_queue.isEmpty) return;
     setState(() => _index = (_index - 1 + _queue.length) % _queue.length);
+  }
+
+  void _exitSlideshow() {
+    final slug = _album?.slug ?? widget.slug;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    context.go('/a/$slug');
   }
 
   Future<void> _load() async {
@@ -332,7 +342,7 @@ class _SlideshowPageState extends State<SlideshowPage> {
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.escape) {
-                        Navigator.maybePop(context);
+                        _exitSlideshow();
                         return KeyEventResult.handled;
                       }
                       return KeyEventResult.ignored;
@@ -379,7 +389,7 @@ class _SlideshowPageState extends State<SlideshowPage> {
                     ),
                     child: IconButton(
                       tooltip: 'Salir del slideshow',
-                      onPressed: () => Navigator.maybePop(context),
+                      onPressed: _exitSlideshow,
                       icon: const Icon(Icons.close_rounded),
                       color: Colors.white,
                     ),

@@ -690,7 +690,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                   ),
                   const SizedBox(height: 14),
                   _ImageTile(
-                    title: 'Cover image',
+                    title: 'Profile image',
                     url: album.coverImageUrl,
                     onPick: () => _pickAndUploadAlbumImage(kind: 'cover'),
                     onRemove: album.coverImageUrl == null
@@ -699,7 +699,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                   ),
                   const SizedBox(height: 10),
                   _ImageTile(
-                    title: 'Banner image',
+                    title: 'Cover image',
                     url: album.bannerImageUrl,
                     onPick: () => _pickAndUploadAlbumImage(kind: 'banner'),
                     onRemove: album.bannerImageUrl == null

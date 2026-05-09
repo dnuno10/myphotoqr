@@ -48,6 +48,9 @@ class AlbumExportService {
       }
     }
 
-    throw Exception(lastError?.toString() ?? 'Could not export album.');
+    throw Exception(
+      'Export function is not deployed in Supabase. Deploy one of: '
+      '${_functionCandidates.join(', ')}. Details: ${lastError ?? 'NOT_FOUND'}',
+    );
   }
 }

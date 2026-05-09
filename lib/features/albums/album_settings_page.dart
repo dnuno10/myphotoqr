@@ -1127,9 +1127,9 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 76,
+      width: 220,
       margin: const EdgeInsets.all(14),
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1143,18 +1143,21 @@ class _Sidebar extends StatelessWidget {
           _NavButton(
             icon: Icons.arrow_back_rounded,
             tooltip: 'Back',
+            label: 'Back',
             onTap: onBack,
           ),
           const SizedBox(height: 12),
           _NavButton(
             icon: Icons.public_rounded,
             tooltip: 'Guest page',
+            label: 'Guest page',
             onTap: onGuestPage,
           ),
           const SizedBox(height: 12),
           _NavButton(
             icon: Icons.slideshow_rounded,
             tooltip: 'Slideshow',
+            label: 'Slideshow',
             onTap: onSlideshow,
           ),
         ],
@@ -1167,11 +1170,13 @@ class _NavButton extends StatelessWidget {
   const _NavButton({
     required this.icon,
     required this.tooltip,
+    required this.label,
     required this.onTap,
   });
 
   final IconData icon;
   final String tooltip;
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -1182,10 +1187,27 @@ class _NavButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
         onTap: onTap,
         child: SizedBox(
-          width: 48,
+          width: double.infinity,
           height: 44,
-          child: Center(
-            child: Icon(icon, size: 22, color: const Color(0xFF15151A)),
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              Icon(icon, size: 22, color: const Color(0xFF15151A)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF15151A),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

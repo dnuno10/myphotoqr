@@ -605,71 +605,135 @@ class _EmptyAlbumsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const price = '19.99';
+    const features = <String>[
+      '1 event album',
+      'QR code and share links for guests',
+      'Guest uploads from the browser',
+      'Photos, videos, notes and audio memories',
+      'Live gallery for viewing content',
+      'Privacy and visibility controls',
+      'Album configuration: name, description, type, date, location, cover, banner and theme',
+      'Moderation: approve, hide, feature or auto-approve',
+      'Live slideshow for TV or projector',
+      'ZIP export with photos and videos',
+      '1 year active album and storage',
+      'Email support within 24–48 business hours',
+    ];
 
     return _Surface(
       padding: const EdgeInsets.fromLTRB(28, 26, 28, 26),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _SoftLabel(
-              icon: Icons.auto_awesome_rounded,
-              text: 'QR ALBUM — ONE-TIME PAYMENT',
-              accent: Color(0xFFFF4D6D),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '\$$price',
-              style: const TextStyle(
-                fontSize: 84,
-                height: 0.95,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -2.5,
-                color: Color(0xFF0B0F14),
+        constraints: const BoxConstraints(maxWidth: 980),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontal = constraints.maxWidth >= 840;
+
+            final left = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SoftLabel(
+                  icon: Icons.auto_awesome_rounded,
+                  text: 'QR ALBUM — ONE-TIME PAYMENT',
+                  accent: Color(0xFFFF4D6D),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '\$$price',
+                  style: TextStyle(
+                    fontSize: horizontal ? 76 : 72,
+                    height: 0.95,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -2.5,
+                    color: const Color(0xFF0B0F14),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'One-time payment',
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black.withOpacity(0.55),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 52,
+                  width: horizontal ? 260 : double.infinity,
+                  child: _PrimaryButton(
+                    text: 'Create album',
+                    icon: Icons.add_rounded,
+                    onPressed: () => context.go('/create'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Ideal for a single event album with quick setup and easy sharing.',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black.withOpacity(0.45),
+                  ),
+                ),
+              ],
+            );
+
+            final included = Container(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F8FA),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Includes 1 album for 1 event with an admin panel.',
-              style: TextStyle(
-                fontSize: 16.5,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-                color: Colors.black.withOpacity(0.55),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "What's included",
+                    style: TextStyle(
+                      fontSize: 18,
+                      height: 1.1,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF15151A),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: features.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: horizontal ? 2 : 1,
+                      childAspectRatio: horizontal ? 6.2 : 7.4,
+                      crossAxisSpacing: 18,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemBuilder: (context, i) => _FeatureRow(text: features[i]),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              height: 52,
-              child: _PrimaryButton(
-                text: 'Create album',
-                icon: Icons.add_rounded,
-                onPressed: () => context.go('/create'),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const _FeatureRow(text: '1 event album'),
-            const _FeatureRow(text: 'QR code and share links for guests'),
-            const _FeatureRow(text: 'Guest uploads from the browser'),
-            const _FeatureRow(text: 'Photos, videos, notes and audio memories'),
-            const _FeatureRow(text: 'Live gallery for viewing content'),
-            const _FeatureRow(text: 'Privacy and visibility controls'),
-            const _FeatureRow(
-              text:
-                  'Album configuration: name, description, type, date, location, cover, banner and theme',
-            ),
-            const _FeatureRow(
-              text: 'Moderation: approve, hide, feature or auto-approve',
-            ),
-            const _FeatureRow(text: 'Live slideshow for TV or projector'),
-            const _FeatureRow(text: 'ZIP export with photos and videos'),
-            const _FeatureRow(text: '1 year active album and storage'),
-            const _FeatureRow(
-              text: 'Email support within 24–48 business hours',
-            ),
-          ],
+            );
+
+            if (!horizontal) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [left, const SizedBox(height: 18), included],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 320, child: left),
+                const SizedBox(width: 24),
+                Expanded(child: included),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -683,33 +747,32 @@ class _FeatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(
-              Icons.check_circle_rounded,
-              size: 22,
-              color: Color(0xFF12B76A),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.check_circle_rounded,
+            size: 22,
+            color: Color(0xFF12B76A),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14.5,
+              height: 1.25,
+              fontWeight: FontWeight.w700,
+              color: Colors.black.withOpacity(0.78),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 16,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-                color: Colors.black.withOpacity(0.75),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

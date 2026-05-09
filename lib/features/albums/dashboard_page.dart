@@ -693,9 +693,9 @@ class _EmptyAlbumsCard extends StatelessWidget {
             final included = Container(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
               decoration: BoxDecoration(
-                color: const Color(0xFF0B0F14),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.10)),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -706,7 +706,7 @@ class _EmptyAlbumsCard extends StatelessWidget {
                       fontSize: 18,
                       height: 1.1,
                       fontWeight: FontWeight.w900,
-                      color: Colors.white,
+                      color: Color(0xFF15151A),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -716,7 +716,7 @@ class _EmptyAlbumsCard extends StatelessWidget {
                         for (final item in features)
                           _FeatureRow(
                             text: item,
-                            textColor: Colors.white.withOpacity(0.88),
+                            textColor: Colors.black.withOpacity(0.78),
                           ),
                       ],
                     )
@@ -730,7 +730,7 @@ class _EmptyAlbumsCard extends StatelessWidget {
                               for (final item in leftFeatures)
                                 _FeatureRow(
                                   text: item,
-                                  textColor: Colors.white.withOpacity(0.88),
+                                  textColor: Colors.black.withOpacity(0.78),
                                 ),
                             ],
                           ),
@@ -742,7 +742,7 @@ class _EmptyAlbumsCard extends StatelessWidget {
                               for (final item in rightFeatures)
                                 _FeatureRow(
                                   text: item,
-                                  textColor: Colors.white.withOpacity(0.88),
+                                  textColor: Colors.black.withOpacity(0.78),
                                 ),
                             ],
                           ),

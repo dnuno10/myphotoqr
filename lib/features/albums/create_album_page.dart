@@ -144,11 +144,12 @@ class _CreateAlbumPageState extends State<CreateAlbumPage> {
     return Scaffold(
       body: SaasBackdrop(
         child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 920),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
                 child: _CreateAlbumCard(
                   formKey: _formKey,
                   titleCtrl: _titleCtrl,

@@ -548,18 +548,22 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
           return _EventEmojiBackground(
             eventType: album.eventType,
             backgroundFill: backgroundFill,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: SaasSurface(
-                    padding: const EdgeInsets.all(22),
-                    color: Colors.white.withOpacity(0.92),
-                    borderColor: Colors.white.withOpacity(0.65),
-                    child: requiresCode
-                        ? _codeForm(album)
-                        : _uploadForm(album, settings),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(20),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: SaasSurface(
+                      padding: const EdgeInsets.all(22),
+                      color: Colors.white.withOpacity(0.92),
+                      borderColor: Colors.white.withOpacity(0.65),
+                      child: requiresCode
+                          ? _codeForm(album)
+                          : _uploadForm(album, settings),
+                    ),
                   ),
                 ),
               ),

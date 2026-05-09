@@ -71,8 +71,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             if (albums.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
+              SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 22, bottom: 24),
                   child: Align(

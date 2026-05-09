@@ -144,57 +144,68 @@ class _CreateAlbumPageState extends State<CreateAlbumPage> {
     return Scaffold(
       body: SaasBackdrop(
         child: SafeArea(
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 920),
-                child: _CreateAlbumCard(
-                  formKey: _formKey,
-                  titleCtrl: _titleCtrl,
-                  descCtrl: _descCtrl,
-                  locationCtrl: _locationCtrl,
-                  codeCtrl: _codeCtrl,
-                  eventTypeLabelCtrl: _eventTypeLabelCtrl,
-                  themeEmojiCtrl: _themeEmojiCtrl,
-                  themeColorFill: _themeColorFill,
-                  themeBackgroundFill: _themeBackgroundFill,
-                  eventTypes: _eventTypes,
-                  eventType: _eventType,
-                  eventDateText: _formattedDate(),
-                  codeProtected: _codeProtected,
-                  loading: _loading,
-                  onBack: () => context.go('/'),
-                  onPickDate: _pickDate,
-                  onCreate: _continueToPayment,
-                  onPickThemeColor: () async {
-                    final result = await showColorFillPickerDialog(
-                      context,
-                      title: 'Theme color',
-                      initialValue: _themeColorFill,
-                    );
-                    if (result == null || !mounted) return;
-                    setState(() => _themeColorFill = result);
-                  },
-                  onPickBackgroundColor: () async {
-                    final result = await showColorFillPickerDialog(
-                      context,
-                      title: 'Background',
-                      initialValue: _themeBackgroundFill,
-                    );
-                    if (result == null || !mounted) return;
-                    setState(() => _themeBackgroundFill = result);
-                  },
-                  onEventTypeChanged: (value) {
-                    setState(() => _eventType = value ?? 'other');
-                  },
-                  onCodeProtectedChanged: (value) {
-                    setState(() => _codeProtected = value);
-                  },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 600;
+              final padding = isCompact ? 16.0 : 24.0;
+              final cardHeight =
+                  math.max(0.0, constraints.maxHeight - (padding * 2));
+
+              return Padding(
+                padding: EdgeInsets.all(padding),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 920),
+                    child: SizedBox(
+                      height: cardHeight,
+                      child: _CreateAlbumCard(
+                        formKey: _formKey,
+                        titleCtrl: _titleCtrl,
+                        descCtrl: _descCtrl,
+                        locationCtrl: _locationCtrl,
+                        codeCtrl: _codeCtrl,
+                        eventTypeLabelCtrl: _eventTypeLabelCtrl,
+                        themeEmojiCtrl: _themeEmojiCtrl,
+                        themeColorFill: _themeColorFill,
+                        themeBackgroundFill: _themeBackgroundFill,
+                        eventTypes: _eventTypes,
+                        eventType: _eventType,
+                        eventDateText: _formattedDate(),
+                        codeProtected: _codeProtected,
+                        loading: _loading,
+                        onBack: () => context.go('/'),
+                        onPickDate: _pickDate,
+                        onCreate: _continueToPayment,
+                        onPickThemeColor: () async {
+                          final result = await showColorFillPickerDialog(
+                            context,
+                            title: 'Theme color',
+                            initialValue: _themeColorFill,
+                          );
+                          if (result == null || !mounted) return;
+                          setState(() => _themeColorFill = result);
+                        },
+                        onPickBackgroundColor: () async {
+                          final result = await showColorFillPickerDialog(
+                            context,
+                            title: 'Background',
+                            initialValue: _themeBackgroundFill,
+                          );
+                          if (result == null || !mounted) return;
+                          setState(() => _themeBackgroundFill = result);
+                        },
+                        onEventTypeChanged: (value) {
+                          setState(() => _eventType = value ?? 'other');
+                        },
+                        onCodeProtectedChanged: (value) {
+                          setState(() => _codeProtected = value);
+                        },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),

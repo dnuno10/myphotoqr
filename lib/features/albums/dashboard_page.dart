@@ -167,11 +167,11 @@ class _DashboardMobileDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(18, 18, 18, 10),
             child: Row(
               children: [
-                LogoMark(size: 44),
+                LogoMark(size: 44, onTap: onDashboard),
                 SizedBox(width: 12),
                 Text(
                   'MyPhotoQR',
@@ -237,7 +237,7 @@ class _DashboardSidebar extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 2),
-          const LogoMark(size: 44),
+          LogoMark(size: 44, onTap: onDashboard),
           const SizedBox(height: 26),
           _SidebarButton(
             icon: Icons.dashboard_rounded,

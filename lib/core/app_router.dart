@@ -52,7 +52,7 @@ class AppRouter {
       }
 
       if (isOwnerSession && isLogin) {
-        return _safeNextLocation(state) ?? '/';
+        return '/';
       }
 
       return null;

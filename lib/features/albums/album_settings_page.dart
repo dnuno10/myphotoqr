@@ -1138,7 +1138,7 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 2),
-          const LogoMark(size: 44),
+          LogoMark(size: 44, onTap: onBack),
           const SizedBox(height: 26),
           _NavButton(
             icon: Icons.arrow_back_rounded,

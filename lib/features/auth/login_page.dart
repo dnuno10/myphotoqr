@@ -159,8 +159,7 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       if (widget.navigateOnSuccess) {
-        final next = widget.nextLocation;
-        context.go((next != null && next.startsWith('/')) ? next : '/');
+        context.go('/');
       }
     } catch (_) {
       if (!mounted) return;

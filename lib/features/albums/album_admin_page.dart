@@ -497,7 +497,7 @@ class _AlbumSidebar extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 2),
-          const LogoMark(size: 44),
+          LogoMark(size: 44, onTap: onDashboard),
           const SizedBox(height: 26),
           _NavButton(
             icon: Icons.dashboard_rounded,

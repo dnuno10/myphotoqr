@@ -73,7 +73,13 @@ class _DashboardPageState extends State<DashboardPage> {
             if (albums.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(child: const _EmptyAlbumsCard()),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 22, bottom: 24),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: const _EmptyAlbumsCard(),
+                  ),
+                ),
               )
             else ...[
               SliverToBoxAdapter(
@@ -621,12 +627,15 @@ class _EmptyAlbumsCard extends StatelessWidget {
     ];
 
     return _Surface(
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 26),
+      padding: const EdgeInsets.fromLTRB(32, 30, 32, 30),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 980),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final horizontal = constraints.maxWidth >= 840;
+            final splitAt = (features.length / 2).ceil();
+            final leftFeatures = features.take(splitAt).toList();
+            final rightFeatures = features.skip(splitAt).toList();
 
             final left = Column(
               mainAxisSize: MainAxisSize.min,
@@ -682,11 +691,11 @@ class _EmptyAlbumsCard extends StatelessWidget {
             );
 
             final included = Container(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8F8FA),
+                color: const Color(0xFF0B0F14),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E5EA)),
+                border: Border.all(color: Colors.white.withOpacity(0.10)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,22 +706,49 @@ class _EmptyAlbumsCard extends StatelessWidget {
                       fontSize: 18,
                       height: 1.1,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF15151A),
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 14),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: features.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: horizontal ? 2 : 1,
-                      childAspectRatio: horizontal ? 6.2 : 7.4,
-                      crossAxisSpacing: 18,
-                      mainAxisSpacing: 12,
+                  if (!horizontal)
+                    Column(
+                      children: [
+                        for (final item in features)
+                          _FeatureRow(
+                            text: item,
+                            textColor: Colors.white.withOpacity(0.88),
+                          ),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              for (final item in leftFeatures)
+                                _FeatureRow(
+                                  text: item,
+                                  textColor: Colors.white.withOpacity(0.88),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              for (final item in rightFeatures)
+                                _FeatureRow(
+                                  text: item,
+                                  textColor: Colors.white.withOpacity(0.88),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    itemBuilder: (context, i) => _FeatureRow(text: features[i]),
-                  ),
                 ],
               ),
             );
@@ -728,7 +764,13 @@ class _EmptyAlbumsCard extends StatelessWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 320, child: left),
+                SizedBox(
+                  width: 330,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: left,
+                  ),
+                ),
                 const SizedBox(width: 24),
                 Expanded(child: included),
               ],
@@ -741,9 +783,10 @@ class _EmptyAlbumsCard extends StatelessWidget {
 }
 
 class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({required this.text});
+  const _FeatureRow({required this.text, this.textColor});
 
   final String text;
+  final Color? textColor;
 
   @override
   Widget build(BuildContext context) {
@@ -768,7 +811,7 @@ class _FeatureRow extends StatelessWidget {
               fontSize: 14.5,
               height: 1.25,
               fontWeight: FontWeight.w700,
-              color: Colors.black.withOpacity(0.78),
+              color: textColor ?? Colors.black.withOpacity(0.78),
             ),
           ),
         ),

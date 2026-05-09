@@ -10,7 +10,7 @@ class AppConfig {
 
   // Replace this with your real Stripe Price ID.
   // It should look like: price_123...
-  static const String stripeAlbumPriceId = 'price_1TTACw30JQkRaV5jCe3dq9KN';
+  static const String stripeAlbumPriceId = 'price_1TSP9P30JQkRaV5jlFYaE8Ov';
 
   static const String albumMediaBucket = 'album-media';
 

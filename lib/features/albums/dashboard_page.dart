@@ -604,53 +604,111 @@ class _EmptyAlbumsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const price = '19.99';
+
     return _Surface(
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 24),
-      child: SizedBox(
-        width: 390,
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 26),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
-              Icons.photo_album_outlined,
-              size: 36,
-              color: Color(0xFF15151A),
+            const _SoftLabel(
+              icon: Icons.auto_awesome_rounded,
+              text: 'QR ALBUM — ONE-TIME PAYMENT',
+              accent: Color(0xFFFF4D6D),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Create your first album',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 26,
-                height: 1.05,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.7,
-                color: Color(0xFF15151A),
-              ),
-            ),
-            const SizedBox(height: 8),
             Text(
-              'Create your album details, complete payment and start collecting guest memories.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.5,
-                height: 1.35,
-                fontWeight: FontWeight.w500,
-                color: Colors.black.withOpacity(0.45),
+              '\$$price',
+              style: const TextStyle(
+                fontSize: 84,
+                height: 0.95,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -2.5,
+                color: Color(0xFF0B0F14),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
+            Text(
+              'Includes 1 album for 1 event with an admin panel.',
+              style: TextStyle(
+                fontSize: 16.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Colors.black.withOpacity(0.55),
+              ),
+            ),
+            const SizedBox(height: 18),
             SizedBox(
-              width: double.infinity,
-              height: 48,
+              height: 52,
               child: _PrimaryButton(
                 text: 'Create album',
                 icon: Icons.add_rounded,
                 onPressed: () => context.go('/create'),
               ),
             ),
+            const SizedBox(height: 20),
+            const _FeatureRow(text: '1 event album'),
+            const _FeatureRow(text: 'QR code and share links for guests'),
+            const _FeatureRow(text: 'Guest uploads from the browser'),
+            const _FeatureRow(text: 'Photos, videos, notes and audio memories'),
+            const _FeatureRow(text: 'Live gallery for viewing content'),
+            const _FeatureRow(text: 'Privacy and visibility controls'),
+            const _FeatureRow(
+              text:
+                  'Album configuration: name, description, type, date, location, cover, banner and theme',
+            ),
+            const _FeatureRow(
+              text: 'Moderation: approve, hide, feature or auto-approve',
+            ),
+            const _FeatureRow(text: 'Live slideshow for TV or projector'),
+            const _FeatureRow(text: 'ZIP export with photos and videos'),
+            const _FeatureRow(text: '1 year active album and storage'),
+            const _FeatureRow(
+              text: 'Email support within 24–48 business hours',
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.check_circle_rounded,
+              size: 22,
+              color: Color(0xFF12B76A),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 16,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Colors.black.withOpacity(0.75),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -845,25 +903,30 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _SoftLabel extends StatelessWidget {
-  const _SoftLabel({required this.icon, required this.text});
+  const _SoftLabel({
+    required this.icon,
+    required this.text,
+    this.accent = const Color(0xFF15151A),
+  });
 
   final IconData icon;
   final String text;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 15, color: const Color(0xFF15151A)),
+        Icon(icon, size: 15, color: accent),
         const SizedBox(width: 7),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.45,
-            color: Color(0xFF15151A),
+            color: accent,
           ),
         ),
       ],

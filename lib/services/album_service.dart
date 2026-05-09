@@ -115,6 +115,10 @@ class AlbumService {
     return Album.fromJson(updated);
   }
 
+  Future<void> deleteAlbum({required String albumId}) async {
+    await supabase.rpc('delete_album', params: {'album_uuid': albumId});
+  }
+
   Future<String> hashGuestAccessCode(String code) async {
     final hash = await supabase.rpc(
       'hash_guest_access_code',

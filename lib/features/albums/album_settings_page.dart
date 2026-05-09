@@ -65,6 +65,7 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _deleting = false;
 
   Album? _album;
   AlbumSettings? _albumSettings;
@@ -394,6 +395,63 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmDeleteAlbum(Album album) async {
+    if (_deleting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete album?'),
+          content: Text(
+            'This will permanently delete "${album.title}" and all related data. This action cannot be undone.',
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Delete'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await _albumService.deleteAlbum(albumId: album.id);
+      if (!mounted) return;
+      context.showTopRightSnackBar('Album deleted.', type: ToastType.success);
+      context.go('/');
+    } catch (e) {
+      if (!mounted) return;
+      context.showTopRightSnackBar(
+        'Could not delete album: $e',
+        type: ToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -1047,6 +1105,42 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
                   _LinkRow(label: 'Guest page', value: guestPageUrl),
                   _LinkRow(label: 'Upload page', value: uploadUrl),
                   _LinkRow(label: 'Slideshow', value: slideshowUrl),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            SaasSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle('Danger zone'),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Delete this album and all related data.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black.withOpacity(0.55),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                        side: BorderSide(color: Colors.red.shade200),
+                      ),
+                      onPressed: (_saving || _deleting)
+                          ? null
+                          : () => _confirmDeleteAlbum(album),
+                      label: Text(_deleting ? 'Deleting...' : 'Delete album'),
+                    ),
+                  ),
                 ],
               ),
             ),

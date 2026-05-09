@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../core/app_config.dart';
 import '../core/supabase_client.dart';
 import '../models/album.dart';
@@ -21,19 +23,32 @@ class AlbumService {
     final authUser = supabase.auth.currentUser;
     if (authUser == null) throw Exception('Not authenticated.');
 
-    final existing = await supabase
-        .from('users')
+    final usersTable = supabase.from('users');
+
+    final existing = await usersTable
         .select()
         .eq('auth_user_id', authUser.id)
         .maybeSingle();
 
     if (existing != null) return existing;
 
-    return await supabase
-        .from('users')
-        .insert({'auth_user_id': authUser.id, 'email': authUser.email})
-        .select()
-        .single();
+    try {
+      return await usersTable
+          .insert({'auth_user_id': authUser.id, 'email': authUser.email})
+          .select()
+          .single();
+    } on PostgrestException catch (e) {
+      // If another request created the profile row first (race condition),
+      // fall back to fetching it instead of failing the whole flow.
+      if (e.code == '23505') {
+        final created = await usersTable
+            .select()
+            .eq('auth_user_id', authUser.id)
+            .maybeSingle();
+        if (created != null) return created;
+      }
+      rethrow;
+    }
   }
 
   Future<List<Album>> getMyAlbums() async {

@@ -64,12 +64,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(left, 18, right, 0),
-                child: _DashboardMetrics(albums: albums),
+            if (albums.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(left, 18, right, 0),
+                  child: _DashboardMetrics(albums: albums),
+                ),
               ),
-            ),
             if (albums.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(

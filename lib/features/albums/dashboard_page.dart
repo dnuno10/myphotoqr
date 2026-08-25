@@ -610,7 +610,7 @@ class _EmptyAlbumsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const price = '19.99';
+    const price = '9.99';
     const features = <String>[
       '1 event album',
       'QR code and share links for guests',

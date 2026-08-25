@@ -1,10 +1,10 @@
 // ignore_for_file: avoid_web_libraries_in_flutter
 
 import 'dart:async';
+import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:mime/mime.dart';
@@ -14,6 +14,17 @@ import 'package:uuid/uuid.dart';
 
 import '../core/app_config.dart';
 import '../core/supabase_client.dart';
+
+@JS('heic2any')
+external JSPromise<JSAny?> _heic2any(_Heic2AnyOptions options);
+
+extension type _Heic2AnyOptions._(JSObject _) implements JSObject {
+  external factory _Heic2AnyOptions({
+    required JSAny blob,
+    required String toType,
+    required double quality,
+  });
+}
 
 class UploadService {
   static const _photoExtensions = {
@@ -173,19 +184,30 @@ class UploadService {
     // Uses `heic2any` injected in `web/index.html`.
     final blob = html.Blob([heicBytes], sourceMimeType);
 
-    final promise = js_util.callMethod(html.window, 'heic2any', [
-      {'blob': blob, 'toType': 'image/jpeg', 'quality': 0.9},
-    ]);
+    final promise = _heic2any(
+      _Heic2AnyOptions(
+        blob: JSObject.fromInteropObject(blob),
+        toType: 'image/jpeg',
+        quality: 0.9,
+      ),
+    );
 
-    final result = await js_util.promiseToFuture<dynamic>(promise);
-    final outBlob = (result is List && result.isNotEmpty)
-        ? result.first
-        : result;
+    final result = await promise.toDart;
+    final outBlob = _heic2AnyResultBlob(result);
     if (outBlob is! html.Blob) {
       throw Exception('Could not convert HEIC to JPG in this browser.');
     }
 
     return await _readBlobBytes(outBlob);
+  }
+
+  html.Blob? _heic2AnyResultBlob(JSAny? result) {
+    if (result == null) return null;
+    if (result.isA<JSArray<JSObject>>()) {
+      final blobs = result as JSArray<JSObject>;
+      return blobs.length > 0 ? blobs[0] as html.Blob : null;
+    }
+    return result as html.Blob;
   }
 
   Future<Uint8List> _readBlobBytes(html.Blob blob) async {

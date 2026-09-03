@@ -445,7 +445,7 @@ class _CreateAlbumCard extends StatelessWidget {
                 ),
               ),
               child: _PrimaryButton(
-                text: 'Create album for \$19.99',
+                text: 'Create album for \$9.99',
                 icon: Icons.diamond_outlined,
                 loading: loading,
                 onPressed: onCreate,

@@ -6,11 +6,11 @@ class AppConfig {
 
   static const String appPublicBaseUrl = 'https://app.myphotoqr.com';
 
-  static const String stripeProductId = 'prod_URHidzkDgUyTy6';
+  static const String stripeProductId = 'prod_VC3G4ujmHp9uZk';
 
   // Replace this with your real Stripe Price ID.
   // It should look like: price_123...
-  static const String stripeAlbumPriceId = 'price_1TSP9P30JQkRaV5jlFYaE8Ov';
+  static const String stripeAlbumPriceId = 'price_1UBf9h3kPVs6fjFLaoNK5y7u';
 
   static const String albumMediaBucket = 'album-media';
 

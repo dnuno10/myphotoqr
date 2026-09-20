@@ -6,6 +6,7 @@ import '../../services/album_service.dart';
 import '../../services/auth_service.dart';
 import '../../shared/ui/color_utils.dart';
 import '../../shared/ui/event_icons.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/loading_view.dart';
 import '../../shared/widgets/logo_mark.dart';
@@ -48,7 +49,12 @@ class _DashboardPageState extends State<DashboardPage> {
         }
 
         if (snapshot.hasError) {
-          return ErrorView(message: snapshot.error.toString());
+          return ErrorView(
+            message: safeUserErrorMessage(
+              snapshot.error,
+              fallback: 'We could not load your albums. Please try again.',
+            ),
+          );
         }
 
         final albums = snapshot.data ?? [];

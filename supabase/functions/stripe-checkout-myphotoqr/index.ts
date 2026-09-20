@@ -275,7 +275,8 @@ serve(async (req) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ error: message || "Unexpected error" }), {
+    console.error("stripe-checkout-myphotoqr failed", message);
+    return new Response(JSON.stringify({ error: "checkout_unavailable" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

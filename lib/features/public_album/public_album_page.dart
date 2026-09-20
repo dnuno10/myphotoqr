@@ -10,6 +10,7 @@ import '../../services/album_export_service.dart';
 import '../../services/guest_session_service.dart';
 import '../../services/upload_service.dart';
 import '../../shared/ui/app_snackbars.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/ui/event_theme.dart';
 import '../../shared/widgets/loading_view.dart';
@@ -95,7 +96,13 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
       setState(() => _accessGranted = true);
     } catch (e) {
       if (!mounted) return;
-      context.showTopRightSnackBar(e.toString(), type: ToastType.error);
+      context.showTopRightSnackBar(
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not unlock this album. Please try again.',
+        ),
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _unlocking = false);
     }
@@ -172,7 +179,10 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not export album: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not export this album. Please try again later.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -214,7 +224,12 @@ class _PublicAlbumPageState extends State<PublicAlbumPage> {
           if (snapshot.hasError) {
             return _EventEmojiBackground(
               eventType: 'other',
-              child: ErrorView(message: snapshot.error.toString()),
+              child: ErrorView(
+                message: safeUserErrorMessage(
+                  snapshot.error,
+                  fallback: 'We could not load this album. Please try again.',
+                ),
+              ),
             );
           }
 

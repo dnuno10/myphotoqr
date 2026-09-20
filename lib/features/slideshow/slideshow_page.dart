@@ -16,6 +16,7 @@ import '../../services/slideshow_settings_service.dart';
 import '../../services/upload_service.dart';
 import '../../shared/ui/color_utils.dart';
 import '../../shared/ui/event_icons.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/loading_view.dart';
 import '../../shared/widgets/logo_mark.dart';
@@ -228,7 +229,14 @@ class _SlideshowPageState extends State<SlideshowPage> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return Scaffold(body: ErrorView(message: _error.toString()));
+      return Scaffold(
+        body: ErrorView(
+          message: safeUserErrorMessage(
+            _error,
+            fallback: 'We could not load this slideshow. Please try again.',
+          ),
+        ),
+      );
     }
     if (_album == null) {
       return const Scaffold(body: LoadingView(message: 'Loading slideshow...'));

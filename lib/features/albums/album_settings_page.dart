@@ -16,6 +16,7 @@ import '../../services/album_service.dart';
 import '../../services/album_settings_service.dart';
 import '../../services/slideshow_settings_service.dart';
 import '../../shared/ui/app_snackbars.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/color_fill_picker.dart';
 import '../../shared/ui/color_fill.dart';
 import '../../shared/widgets/logo_mark.dart';
@@ -210,7 +211,10 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
       if (!mounted) return;
       setState(() => _loading = false);
       context.showTopRightSnackBar(
-        'Could not load settings: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not load settings. Please try again.',
+        ),
         type: ToastType.error,
       );
     }
@@ -390,7 +394,10 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
       context.showTopRightSnackBar('Settings saved.', type: ToastType.success);
     } catch (e) {
       context.showTopRightSnackBar(
-        'Could not save settings: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not save settings. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -447,7 +454,10 @@ class _AlbumSettingsPageState extends State<AlbumSettingsPage> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not delete album: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not delete this album. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {

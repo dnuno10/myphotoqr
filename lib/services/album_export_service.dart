@@ -1,5 +1,14 @@
 import '../core/supabase_client.dart';
 
+class AlbumExportException implements Exception {
+  const AlbumExportException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class AlbumExportService {
   static const List<String> _functionCandidates = [
     'album-export-myphotoqr',
@@ -10,7 +19,6 @@ class AlbumExportService {
     required String albumId,
     String? guestCode,
   }) async {
-    Object? lastError;
     for (final functionName in _functionCandidates) {
       try {
         final response = await supabase.functions.invoke(
@@ -26,19 +34,26 @@ class AlbumExportService {
         final data = response.data;
 
         if (data is Map && data['error'] != null) {
-          throw Exception(data['error'].toString());
+          throw const AlbumExportException(
+            'We could not prepare the ZIP export. Please try again in a moment.',
+          );
         }
 
         if (data is! Map || data['url'] == null) {
-          throw Exception('Export URL was not returned.');
+          throw const AlbumExportException(
+            'We could not prepare the ZIP export. Please try again in a moment.',
+          );
         }
 
         final url = data['url'].toString();
         final uri = Uri.tryParse(url);
-        if (uri == null) throw Exception('Invalid export URL.');
+        if (uri == null) {
+          throw const AlbumExportException(
+            'We could not prepare the ZIP export. Please try again in a moment.',
+          );
+        }
         return uri;
       } catch (e) {
-        lastError = e;
         final msg = e.toString().toLowerCase();
         final isNotFound =
             msg.contains('status: 404') ||
@@ -48,9 +63,8 @@ class AlbumExportService {
       }
     }
 
-    throw Exception(
-      'Export function is not deployed in Supabase. Deploy one of: '
-      '${_functionCandidates.join(', ')}. Details: ${lastError ?? 'NOT_FOUND'}',
+    throw const AlbumExportException(
+      'ZIP export is not available right now. Please try again later.',
     );
   }
 }

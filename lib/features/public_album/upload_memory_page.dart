@@ -11,10 +11,11 @@ import '../../services/album_settings_service.dart';
 import '../../services/guest_session_service.dart';
 import '../../services/upload_service.dart';
 import '../../shared/media_duration/media_duration.dart';
-import '../../shared/widgets/error_view.dart';
-import '../../shared/ui/event_theme.dart';
-import '../../shared/ui/color_fill.dart';
 import '../../shared/ui/app_snackbars.dart';
+import '../../shared/ui/color_fill.dart';
+import '../../shared/ui/event_theme.dart';
+import '../../shared/ui/safe_user_messages.dart';
+import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/loading_view.dart';
 import '../../shared/widgets/logo_mark.dart';
 import '../../shared/widgets/saas_surface.dart';
@@ -485,7 +486,6 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
       if (e.code == '42501' || e.message.contains('row-level security')) {
         return 'Uploads are currently unavailable. Please contact the album host.';
       }
-      if (e.message.trim().isNotEmpty) return e.message.trim();
     }
 
     final raw = e.toString();
@@ -512,7 +512,10 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
     }
 
     simplified = simplified.trim();
-    return simplified.isEmpty ? 'Upload failed. Please try again.' : simplified;
+    return safeUserErrorMessage(
+      simplified,
+      fallback: 'Upload failed. Please try again.',
+    );
   }
 
   @override
@@ -531,7 +534,13 @@ class _UploadMemoryPageState extends State<UploadMemoryPage> {
           if (snapshot.hasError) {
             return _EventEmojiBackground(
               eventType: 'other',
-              child: ErrorView(message: snapshot.error.toString()),
+              child: ErrorView(
+                message: safeUserErrorMessage(
+                  snapshot.error,
+                  fallback:
+                      'We could not load this upload page. Please try again.',
+                ),
+              ),
             );
           }
 

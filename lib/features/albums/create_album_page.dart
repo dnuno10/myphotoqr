@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../services/payment_service.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/album_backdrop.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/color_fill_picker.dart';
@@ -100,7 +101,13 @@ class _CreateAlbumPageState extends State<CreateAlbumPage> {
       await showAppMessageDialog(
         context,
         title: 'Could not start checkout',
-        message: e.toString(),
+        message: e is PaymentUserMessageException
+            ? e.message
+            : safeUserErrorMessage(
+                e,
+                fallback:
+                    'We could not start checkout. Please try again in a moment.',
+              ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -148,8 +155,10 @@ class _CreateAlbumPageState extends State<CreateAlbumPage> {
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 600;
               final padding = isCompact ? 16.0 : 24.0;
-              final cardHeight =
-                  math.max(0.0, constraints.maxHeight - (padding * 2));
+              final cardHeight = math.max(
+                0.0,
+                constraints.maxHeight - (padding * 2),
+              );
 
               return Padding(
                 padding: EdgeInsets.all(padding),

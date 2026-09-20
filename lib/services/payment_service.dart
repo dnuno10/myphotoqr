@@ -5,6 +5,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/app_config.dart';
 import '../core/supabase_client.dart';
 
+class PaymentUserMessageException implements Exception {
+  const PaymentUserMessageException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class AlbumCheckoutDraft {
   const AlbumCheckoutDraft({
     required this.title,
@@ -76,8 +85,9 @@ class AlbumCheckoutDraft {
     }
 
     if (themeBackgroundMode == 'gradient' && themeBackgroundGradient != null) {
-      metadata['album_theme_background_gradient'] =
-          jsonEncode(themeBackgroundGradient);
+      metadata['album_theme_background_gradient'] = jsonEncode(
+        themeBackgroundGradient,
+      );
     }
 
     final label = (eventTypeLabel ?? '').trim();
@@ -134,20 +144,26 @@ class CheckoutAlbumResult {
 }
 
 class PaymentService {
+  static const _checkoutStartError =
+      'We could not start checkout. Please try again in a moment.';
+  static const _checkoutStatusError =
+      'We could not confirm the payment yet. Please refresh and try again.';
+  static const _checkoutConfigError =
+      'Checkout is not available right now. Please contact support.';
+
   Future<void> startAlbumCheckout(AlbumCheckoutDraft draft) async {
     if (AppConfig.stripeAlbumPriceId.startsWith('price_REPLACE')) {
-      throw Exception(
-        'Missing Stripe Price ID. Add your price_... value in AppConfig.stripeAlbumPriceId.',
-      );
+      throw const PaymentUserMessageException(_checkoutConfigError);
     }
 
     String? guestCodeHash;
-    if (draft.codeProtected &&
-        (draft.guestCode?.trim().isNotEmpty ?? false)) {
-      guestCodeHash = await supabase.rpc(
-        'hash_guest_access_code',
-        params: {'code': draft.guestCode!.trim()},
-      ) as String;
+    if (draft.codeProtected && (draft.guestCode?.trim().isNotEmpty ?? false)) {
+      guestCodeHash =
+          await supabase.rpc(
+                'hash_guest_access_code',
+                params: {'code': draft.guestCode!.trim()},
+              )
+              as String;
     }
 
     final albumMetadata = draft.toStripeMetadata();
@@ -170,11 +186,11 @@ class PaymentService {
     final data = response.data;
 
     if (data is Map && data['error'] != null) {
-      throw Exception(data['error'].toString());
+      throw const PaymentUserMessageException(_checkoutStartError);
     }
 
     if (data is! Map || data['url'] == null) {
-      throw Exception('Checkout URL was not returned.');
+      throw const PaymentUserMessageException(_checkoutStartError);
     }
 
     final checkoutUrl = data['url'].toString();
@@ -187,7 +203,9 @@ class PaymentService {
     );
 
     if (!opened) {
-      throw Exception('Could not open Stripe Checkout.');
+      throw const PaymentUserMessageException(
+        'We could not open checkout. Please allow pop-ups or try again.',
+      );
     }
   }
 
@@ -196,16 +214,13 @@ class PaymentService {
   }) async {
     final response = await supabase.functions.invoke(
       'stripe-checkout-myphotoqr',
-      body: {
-        'mode': 'get_album_result',
-        'session_id': sessionId,
-      },
+      body: {'mode': 'get_album_result', 'session_id': sessionId},
     );
 
     final data = response.data;
 
     if (data is Map && data['error'] != null) {
-      throw Exception(data['error'].toString());
+      throw const PaymentUserMessageException(_checkoutStatusError);
     }
 
     if (data is! Map) {

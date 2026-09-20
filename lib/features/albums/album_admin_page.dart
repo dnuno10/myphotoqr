@@ -23,6 +23,7 @@ import '../../services/album_service.dart';
 import '../../shared/ui/app_snackbars.dart';
 import '../../shared/ui/color_utils.dart';
 import '../../shared/ui/event_icons.dart';
+import '../../shared/ui/safe_user_messages.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/loading_view.dart';
 import '../../shared/widgets/logo_mark.dart';
@@ -242,7 +243,13 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
       _showSnack('QR downloaded.', type: ToastType.success);
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Could not download QR: $e', type: ToastType.error);
+      _showSnack(
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not download the QR code. Please try again.',
+        ),
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _qrBusy = false);
     }
@@ -279,7 +286,13 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
       _showSnack('Export started.', type: ToastType.success);
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Could not export album: $e', type: ToastType.error);
+      _showSnack(
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not export this album. Please try again later.',
+        ),
+        type: ToastType.error,
+      );
     } finally {
       if (mounted) setState(() => _exportBusy = false);
     }
@@ -297,7 +310,12 @@ class _AlbumAdminPageState extends State<AlbumAdminPage> {
           }
 
           if (snapshot.hasError) {
-            return ErrorView(message: snapshot.error.toString());
+            return ErrorView(
+              message: safeUserErrorMessage(
+                snapshot.error,
+                fallback: 'We could not load this album. Please try again.',
+              ),
+            );
           }
 
           final album = snapshot.data!;
@@ -1334,7 +1352,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not delete media: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not delete this media. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1361,7 +1382,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not approve media: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not approve this media. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1384,7 +1408,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not update media: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not update this media. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1405,7 +1432,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not update media: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not update this media. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1434,7 +1464,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not delete note: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not delete this note. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1461,7 +1494,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not approve note: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not approve this note. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1484,7 +1520,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not update note: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not update this note. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1505,7 +1544,10 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
     } catch (e) {
       if (!mounted) return;
       context.showTopRightSnackBar(
-        'Could not update note: $e',
+        safeUserErrorMessage(
+          e,
+          fallback: 'We could not update this note. Please try again.',
+        ),
         type: ToastType.error,
       );
     } finally {
@@ -1535,7 +1577,13 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
                 if (snapshot.hasError) {
                   return Padding(
                     padding: const EdgeInsets.all(18),
-                    child: ErrorView(message: snapshot.error.toString()),
+                    child: ErrorView(
+                      message: safeUserErrorMessage(
+                        snapshot.error,
+                        fallback:
+                            'We could not load these notes. Please try again.',
+                      ),
+                    ),
                   );
                 }
 
@@ -1581,7 +1629,13 @@ class _AdminMemoriesManagerState extends State<_AdminMemoriesManager> {
                 if (snapshot.hasError) {
                   return Padding(
                     padding: const EdgeInsets.all(18),
-                    child: ErrorView(message: snapshot.error.toString()),
+                    child: ErrorView(
+                      message: safeUserErrorMessage(
+                        snapshot.error,
+                        fallback:
+                            'We could not load this media. Please try again.',
+                      ),
+                    ),
                   );
                 }
 

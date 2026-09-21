@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/plans.dart';
 import '../../models/album.dart';
 import '../../services/album_service.dart';
-import '../../services/auth_service.dart';
-import '../../shared/ui/color_utils.dart';
-import '../../shared/ui/event_icons.dart';
 import '../../shared/ui/safe_user_messages.dart';
+import '../../shared/widgets/app_shell.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/loading_view.dart';
-import '../../shared/widgets/logo_mark.dart';
+import 'album_card.dart';
+
+const _ink = Color(0xFF15151A);
+const _pink = Color(0xFFE11D48);
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -20,6 +22,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final _albumService = AlbumService();
+  final _howItWorksKey = GlobalKey();
   late Future<List<Album>> _future;
 
   @override
@@ -28,396 +31,85 @@ class _DashboardPageState extends State<DashboardPage> {
     _future = _albumService.getMyAlbums();
   }
 
-  Future<void> _signOut() async {
-    await AuthService().signOut();
-
-    if (mounted) {
-      context.go('/login');
-    }
-  }
-
-  Widget _buildDashboardContent({required bool compact}) {
-    final left = compact ? 16.0 : 22.0;
-    final right = compact ? 16.0 : 34.0;
-    final top = compact ? 18.0 : 26.0;
-
-    return FutureBuilder<List<Album>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingView();
-        }
-
-        if (snapshot.hasError) {
-          return ErrorView(
-            message: safeUserErrorMessage(
-              snapshot.error,
-              fallback: 'We could not load your albums. Please try again.',
-            ),
-          );
-        }
-
-        final albums = snapshot.data ?? [];
-
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(left, top, right, 0),
-                child: _DashboardHeader(
-                  albums: albums,
-                  onCreateAlbum: () => context.go('/create'),
-                ),
-              ),
-            ),
-            if (albums.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(left, 18, right, 0),
-                  child: _DashboardMetrics(albums: albums),
-                ),
-              ),
-            if (albums.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(left, 22, right, 24),
-                  child: const _EmptyAlbumsCard(),
-                ),
-              )
-            else ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(left, 24, right, 12),
-                  child: _SectionTitle(
-                    subtitle:
-                        'Open an album to manage uploads, QR access and guest memories.',
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(left, 0, right, 24),
-                sliver: SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 380,
-                    mainAxisExtent: 222,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: albums.length,
-                  itemBuilder: (context, index) {
-                    final album = albums[index];
-
-                    return _AlbumCard(
-                      album: album,
-                      onTap: () => context.go('/album/${album.id}'),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ],
-        );
-      },
+  void _scrollToHowItWorks() {
+    final ctx = _howItWorksKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 900;
+    return AppShell(
+      current: ShellSection.dashboard,
+      child: FutureBuilder<List<Album>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const LoadingView();
+          }
 
-        return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: compact ? AppBar(title: const Text('Dashboard')) : null,
-          drawer: compact
-              ? Drawer(
-                  child: _DashboardMobileDrawer(
-                    onDashboard: () => context.go('/'),
-                    onCreateAlbum: () => context.go('/create'),
-                    onSignOut: _signOut,
-                  ),
-                )
-              : null,
-          body: SafeArea(
-            child: compact
-                ? _buildDashboardContent(compact: true)
-                : Row(
-                    children: [
-                      _DashboardSidebar(
-                        onDashboard: () => context.go('/'),
-                        onCreateAlbum: () => context.go('/create'),
-                        onSignOut: _signOut,
-                      ),
-                      Expanded(child: _buildDashboardContent(compact: false)),
-                    ],
-                  ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _DashboardMobileDrawer extends StatelessWidget {
-  const _DashboardMobileDrawer({
-    required this.onDashboard,
-    required this.onCreateAlbum,
-    required this.onSignOut,
-  });
-
-  final VoidCallback onDashboard;
-  final VoidCallback onCreateAlbum;
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(18, 18, 18, 10),
-            child: Row(
-              children: [
-                LogoMark(size: 44, onTap: onDashboard),
-                SizedBox(width: 12),
-                Text(
-                  'MyPhotoQR',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.dashboard_rounded),
-            title: const Text('Dashboard'),
-            onTap: () {
-              Navigator.of(context).pop();
-              onDashboard();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.add_rounded),
-            title: const Text('Create album'),
-            onTap: () {
-              Navigator.of(context).pop();
-              onCreateAlbum();
-            },
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded),
-            title: const Text('Sign out'),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await onSignOut();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardSidebar extends StatelessWidget {
-  const _DashboardSidebar({
-    required this.onDashboard,
-    required this.onCreateAlbum,
-    required this.onSignOut,
-  });
-
-  final VoidCallback onDashboard;
-  final VoidCallback onCreateAlbum;
-  final VoidCallback onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      margin: const EdgeInsets.all(14),
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 2),
-          LogoMark(size: 44, onTap: onDashboard),
-          const SizedBox(height: 26),
-          _SidebarButton(
-            icon: Icons.dashboard_rounded,
-            tooltip: 'Dashboard',
-            label: 'Dashboard',
-            active: true,
-            onTap: onDashboard,
-          ),
-          const SizedBox(height: 12),
-          _SidebarButton(
-            icon: Icons.add_rounded,
-            tooltip: 'Create album',
-            label: 'Create album',
-            onTap: onCreateAlbum,
-          ),
-          const Spacer(),
-          _SidebarButton(
-            icon: Icons.logout_rounded,
-            tooltip: 'Sign out',
-            label: 'Sign out',
-            onTap: onSignOut,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SidebarButton extends StatelessWidget {
-  const _SidebarButton({
-    required this.icon,
-    required this.tooltip,
-    required this.label,
-    required this.onTap,
-    this.active = false,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final String label;
-  final VoidCallback onTap;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: SizedBox(
-          width: double.infinity,
-          height: 44,
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 3,
-                height: active ? 22 : 0,
-                margin: const EdgeInsets.only(left: 4, right: 10),
-                decoration: BoxDecoration(
-                  color: active ? Colors.black : Colors.transparent,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+          if (snapshot.hasError) {
+            return ErrorView(
+              message: safeUserErrorMessage(
+                snapshot.error,
+                fallback: 'We could not load your albums. Please try again.',
               ),
-              Icon(
-                icon,
-                size: 22,
-                color: active ? Colors.black : const Color(0xFF6A6A74),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    color: active ? Colors.black : const Color(0xFF6A6A74),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({required this.albums, required this.onCreateAlbum});
-
-  final List<Album> albums;
-  final VoidCallback onCreateAlbum;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasAlbums = albums.isNotEmpty;
-
-    return _Surface(
-      padding: const EdgeInsets.fromLTRB(24, 22, 22, 22),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 760;
-
-          final content = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SoftLabel(
-                icon: Icons.auto_awesome_rounded,
-                text: 'QR ALBUM DASHBOARD',
-              ),
-              const SizedBox(height: 14),
-              Text(
-                hasAlbums
-                    ? 'Manage every event from one place.'
-                    : 'Create your first QR album.',
-                style: const TextStyle(
-                  color: Color(0xFF15151A),
-                  fontSize: 31,
-                  height: 1.04,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.9,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                hasAlbums
-                    ? 'Review albums, uploads and guest memories without extra steps.'
-                    : 'Fill in your album details, pay once and start collecting memories.',
-                style: TextStyle(
-                  fontSize: 14.5,
-                  height: 1.38,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black.withOpacity(0.48),
-                ),
-              ),
-            ],
-          );
-
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 176,
-                height: 48,
-                child: _PrimaryButton(
-                  text: 'Create album',
-                  icon: Icons.add_rounded,
-                  onPressed: onCreateAlbum,
-                ),
-              ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [content, const SizedBox(height: 18), actions],
             );
           }
 
-          return Row(
-            children: [
-              Expanded(child: content),
-              const SizedBox(width: 22),
-              actions,
-            ],
+          final albums = snapshot.data ?? [];
+
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 760;
+              final wide = constraints.maxWidth >= 1080;
+              final gutter = compact ? 16.0 : 32.0;
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(gutter, 8, gutter, 32),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1240),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Hero(
+                          compact: compact,
+                          hasAlbums: albums.isNotEmpty,
+                          onCreate: () => context.go('/create'),
+                          onWatch: _scrollToHowItWorks,
+                        ),
+                        const SizedBox(height: 20),
+                        _StatsRow(albums: albums, compact: compact),
+                        const SizedBox(height: 20),
+                        if (albums.isNotEmpty) ...[
+                          _RecentAlbums(albums: albums),
+                          const SizedBox(height: 20),
+                        ],
+                        _twoColumn(
+                          wide: wide,
+                          flex: const [11, 10],
+                          children: const [_PromoCard(), _WhyChoose()],
+                        ),
+                        const SizedBox(height: 20),
+                        _twoColumn(
+                          wide: wide,
+                          flex: const [11, 10],
+                          children: [
+                            const _PopularEvents(),
+                            _HowItWorks(key: _howItWorksKey),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -425,725 +117,853 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
-class _DashboardMetrics extends StatelessWidget {
-  const _DashboardMetrics({required this.albums});
+Widget _twoColumn({
+  required bool wide,
+  required List<int> flex,
+  required List<Widget> children,
+}) {
+  if (!wide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [children[0], const SizedBox(height: 20), children[1]],
+    );
+  }
 
-  final List<Album> albums;
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(flex: flex[0], child: children[0]),
+      const SizedBox(width: 20),
+      Expanded(flex: flex[1], child: children[1]),
+    ],
+  );
+}
+
+class _Hero extends StatelessWidget {
+  const _Hero({
+    required this.compact,
+    required this.hasAlbums,
+    required this.onCreate,
+    required this.onWatch,
+  });
+
+  final bool compact;
+  final bool hasAlbums;
+  final VoidCallback onCreate;
+  final VoidCallback onWatch;
 
   @override
   Widget build(BuildContext context) {
-    final totalUploads = albums.fold<int>(
-      0,
-      (previous, album) => previous + album.totalUploads,
+    final title = hasAlbums
+        ? 'Manage every event\nfrom one place.'
+        : 'Create your first QR album\nand start collecting memories.';
+
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'WELCOME TO MYPHOTOQR 👋',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+            color: Color(0xFF6A6A74),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: compact ? 28 : 40,
+            height: 1.08,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.2,
+            color: _ink,
+          ),
+        ),
+        const SizedBox(height: 14),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: const Text(
+            'Turn any event into a shared photo experience. Create your album, '
+            'get a QR code, share it with your guests, and collect photos, '
+            'videos and messages — all in one place.',
+            style: TextStyle(
+              fontSize: 16,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF6A6A74),
+            ),
+          ),
+        ),
+        const SizedBox(height: 22),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Create album'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0B0B10),
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: onWatch,
+                icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                label: const Text('Watch how it works'),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
 
-    final totalPhotos = albums.fold<int>(
-      0,
-      (previous, album) => previous + album.totalPhotos,
-    );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(padding: const EdgeInsets.only(top: 8), child: copy),
+          const SizedBox(height: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.asset('assets/img/dashboard.png', fit: BoxFit.cover),
+          ),
+        ],
+      );
+    }
 
-    final totalVideos = albums.fold<int>(
-      0,
-      (previous, album) => previous + album.totalVideos,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 380),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FractionallySizedBox(
+                widthFactor: 0.62,
+                heightFactor: 1,
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => const LinearGradient(
+                    colors: [Colors.transparent, Colors.black],
+                    stops: [0.0, 0.32],
+                  ).createShader(rect),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Image.asset(
+                      'assets/img/dashboard.png',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                flex: 58,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: copy,
+                ),
+              ),
+              const Expanded(flex: 42, child: SizedBox.shrink()),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+}
 
-    final totalAudios = albums.fold<int>(
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.albums, required this.compact});
+
+  final List<Album> albums;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final uploads = albums.fold<int>(0, (s, a) => s + a.totalUploads);
+    final media = albums.fold<int>(
       0,
-      (previous, album) => previous + album.totalAudios,
+      (s, a) => s + a.totalPhotos + a.totalVideos,
     );
+    final active = albums.where((a) => a.status == 'active').length;
 
-    final totalNotes = albums.fold<int>(
-      0,
-      (previous, album) => previous + album.totalNotes,
-    );
-
-    final metrics = [
-      _MetricData(
-        title: 'Albums',
-        value: albums.length.toString(),
-        icon: Icons.photo_library_outlined,
+    final cards = [
+      _StatCard(
+        icon: Icons.image_outlined,
+        tint: const Color(0xFFE8F0FE),
+        iconColor: const Color(0xFF3B82F6),
+        title: 'Active albums',
+        value: '$active',
+        caption: active == 0 ? 'Create your first album' : 'Ready for guests',
       ),
-      _MetricData(
-        title: 'Uploads',
-        value: totalUploads.toString(),
-        icon: Icons.cloud_upload_outlined,
+      _StatCard(
+        icon: Icons.cloud_upload_rounded,
+        tint: const Color(0xFFE7F7EC),
+        iconColor: const Color(0xFF22C55E),
+        title: 'Total uploads',
+        value: '$uploads',
+        caption: 'Photos, videos and messages',
       ),
-      _MetricData(
-        title: 'Photos',
-        value: totalPhotos.toString(),
-        icon: Icons.photo_outlined,
+      _StatCard(
+        icon: Icons.perm_media_outlined,
+        tint: const Color(0xFFF1EAFE),
+        iconColor: const Color(0xFF8B5CF6),
+        title: 'Photos & videos',
+        value: '$media',
+        caption: 'Your memories are safe',
       ),
-      _MetricData(
-        title: 'Videos',
-        value: totalVideos.toString(),
-        icon: Icons.videocam_outlined,
-      ),
-      _MetricData(
-        title: 'Audios',
-        value: totalAudios.toString(),
-        icon: Icons.audiotrack_outlined,
-      ),
-      _MetricData(
-        title: 'Notes',
-        value: totalNotes.toString(),
-        icon: Icons.notes_rounded,
+      _StatCard(
+        icon: Icons.workspace_premium_outlined,
+        tint: const Color(0xFFFDE8EE),
+        iconColor: const Color(0xFFE11D48),
+        title: 'Plan',
+        value: 'Pay per album',
+        caption: 'From ${Plans.basic.priceLabel} per album',
+        smallValue: true,
       ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 940) {
-          return Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: metrics.map((metric) {
-              return SizedBox(width: 180, child: _MetricCard(metric: metric));
-            }).toList(),
-          );
-        }
+        final columns = constraints.maxWidth >= 1000
+            ? 4
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        const gap = 16.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
 
-        return Row(
-          children: [
-            for (int index = 0; index < metrics.length; index++) ...[
-              Expanded(child: _MetricCard(metric: metrics[index])),
-              if (index != metrics.length - 1) const SizedBox(width: 12),
-            ],
-          ],
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final c in cards) SizedBox(width: width, child: c)],
         );
       },
     );
   }
 }
 
-class _MetricData {
-  const _MetricData({
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.tint,
+    required this.iconColor,
     required this.title,
     required this.value,
-    required this.icon,
+    required this.caption,
+    this.smallValue = false,
   });
 
+  final IconData icon;
+  final Color tint;
+  final Color iconColor;
   final String title;
   final String value;
-  final IconData icon;
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric});
-
-  final _MetricData metric;
+  final String caption;
+  final bool smallValue;
 
   @override
   Widget build(BuildContext context) {
-    return _Surface(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        height: 82,
-        child: Row(
-          children: [
-            Icon(metric.icon, color: const Color(0xFF15151A), size: 21),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    metric.value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 25,
-                      height: 1,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF15151A),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    metric.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black.withOpacity(0.45),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.subtitle});
-
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const _SoftLabel(icon: Icons.folder_open_rounded, text: 'ALBUMS'),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.35,
-              fontWeight: FontWeight.w500,
-              color: Colors.black.withOpacity(0.46),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyAlbumsCard extends StatelessWidget {
-  const _EmptyAlbumsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    const price = '9.99';
-    const features = <String>[
-      '1 event album',
-      'QR code and share links for guests',
-      'Guest uploads from the browser',
-      'Photos, videos, notes and audio memories',
-      'Live gallery for viewing content',
-      'Privacy and visibility controls',
-      'Album configuration: name, description, type, date, location, cover, banner and theme',
-      'Moderation: approve, hide, feature or auto-approve',
-      'Live slideshow for TV or projector',
-      'ZIP export with photos and videos',
-      '1 year active album and storage',
-      'Email support within 24–48 business hours',
-    ];
-
-    return _Surface(
-      padding: const EdgeInsets.fromLTRB(32, 30, 32, 30),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final horizontal = constraints.maxWidth >= 840;
-          final splitAt = (features.length / 2).ceil();
-          final leftFeatures = features.take(splitAt).toList();
-          final rightFeatures = features.skip(splitAt).toList();
-
-          final pricing = Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              horizontal ? 30 : 22,
-              horizontal ? 26 : 22,
-              horizontal ? 30 : 22,
-              horizontal ? 26 : 22,
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFBFC),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFFFCBD5)),
-            ),
-            child: horizontal
-                ? Row(
-                    children: [
-                      Expanded(child: _PricingCopy(price: price)),
-                      const SizedBox(width: 28),
-                      SizedBox(
-                        width: 260,
-                        height: 52,
-                        child: _PrimaryButton(
-                          text: 'Create album',
-                          icon: Icons.add_rounded,
-                          onPressed: () => context.go('/create'),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _PricingCopy(price: price),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        height: 52,
-                        child: _PrimaryButton(
-                          text: 'Create album',
-                          icon: Icons.add_rounded,
-                          onPressed: () => context.go('/create'),
-                        ),
-                      ),
-                    ],
-                  ),
-          );
-
-          final included = Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E5EA)),
-            ),
+    return DashCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 34),
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "What's included",
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF52525B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 18,
-                    height: 1.1,
+                    fontSize: smallValue ? 22 : 30,
+                    height: 1.15,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF15151A),
+                    color: _ink,
                   ),
                 ),
-                const SizedBox(height: 14),
-                if (!horizontal)
-                  Column(
-                    children: [
-                      for (final item in features)
-                        _FeatureRow(
-                          text: item,
-                          textColor: Colors.black.withOpacity(0.78),
-                        ),
-                    ],
-                  )
-                else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (final item in leftFeatures)
-                              _FeatureRow(
-                                text: item,
-                                textColor: Colors.black.withOpacity(0.78),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (final item in rightFeatures)
-                              _FeatureRow(
-                                text: item,
-                                textColor: Colors.black.withOpacity(0.78),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 2),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF8A8A94),
                   ),
-              ],
-            ),
-          );
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [pricing, const SizedBox(height: 18), included],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PricingCopy extends StatelessWidget {
-  const _PricingCopy({required this.price});
-
-  final String price;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SoftLabel(
-          icon: Icons.auto_awesome_rounded,
-          text: 'QR ALBUM — ONE-TIME PAYMENT',
-          accent: Color(0xFFFF4D6D),
-        ),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.end,
-          children: [
-            Text(
-              '\$$price',
-              style: const TextStyle(
-                fontSize: 72,
-                height: 0.95,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -2.0,
-                color: Color(0xFF0B0F14),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Was \$25',
-                style: TextStyle(
-                  fontSize: 22,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  decoration: TextDecoration.lineThrough,
-                  decorationThickness: 2,
-                  color: Colors.black.withOpacity(0.42),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Now just \$9.99 for a limited time.',
-          style: TextStyle(
-            fontSize: 20,
-            height: 1.15,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFFFF3158),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Launch your event album today and save 60% before this special offer ends.',
-          style: TextStyle(
-            fontSize: 15,
-            height: 1.35,
-            fontWeight: FontWeight.w700,
-            color: Colors.black.withOpacity(0.58),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({required this.text, this.textColor});
-
-  final String text;
-  final Color? textColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 1),
-          child: Icon(
-            Icons.check_circle_rounded,
-            size: 22,
-            color: Color(0xFF12B76A),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14.5,
-              height: 1.25,
-              fontWeight: FontWeight.w700,
-              color: textColor ?? Colors.black.withOpacity(0.78),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AlbumCard extends StatelessWidget {
-  const _AlbumCard({required this.album, required this.onTap});
-
-  final Album album;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isProtected = album.guestAccessCodeEnabled;
-    final accent = (album.themeColor).toColorOr(const Color(0xFF6D28D9));
-    final description = album.description?.trim();
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: _Surface(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  iconForEventType(album.eventType),
-                  size: 27,
-                  color: accent.mix(const Color(0xFF111116), 0.12),
-                ),
-                const Spacer(),
-                _StatusPill(
-                  text: _formatStatus(album.status),
-                  color: album.status == 'active'
-                      ? const Color(0xFF12B76A)
-                      : const Color(0xFF111827),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              album.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 23,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.6,
-                color: Color(0xFF15151A),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description == null || description.isEmpty
-                  ? 'Ready to share with guests.'
-                  : description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.35,
-                fontWeight: FontWeight.w500,
-                color: Colors.black.withOpacity(0.45),
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.only(top: 12),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFFECECF0), width: 1),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _AlbumMiniStat(
-                      label: 'Photos',
-                      value: album.totalPhotos.toString(),
-                    ),
-                  ),
-                  Expanded(
-                    child: _AlbumMiniStat(
-                      label: 'Videos',
-                      value: album.totalVideos.toString(),
-                    ),
-                  ),
-                  Expanded(
-                    child: _AlbumMiniStat(
-                      label: 'Audios',
-                      value: album.totalAudios.toString(),
-                    ),
-                  ),
-                  Expanded(
-                    child: _AlbumMiniStat(
-                      label: 'Notes',
-                      value: album.totalNotes.toString(),
-                    ),
-                  ),
-                  if (isProtected)
-                    const Icon(
-                      Icons.lock_outline_rounded,
-                      size: 18,
-                      color: Color(0xFF15151A),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatStatus(String value) {
-    final normalized = value.trim().toLowerCase();
-
-    if (normalized.isEmpty) return 'Draft';
-    if (normalized == 'active') return 'Active';
-    if (normalized == 'draft') return 'Draft';
-    if (normalized == 'paused') return 'Paused';
-    if (normalized == 'archived') return 'Archived';
-
-    return normalized[0].toUpperCase() + normalized.substring(1);
-  }
-}
-
-class _AlbumMiniStat extends StatelessWidget {
-  const _AlbumMiniStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 19,
-            height: 1,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF15151A),
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: Colors.black.withOpacity(0.42),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withOpacity(0.14)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12.5,
-          fontWeight: FontWeight.w800,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _SoftLabel extends StatelessWidget {
-  const _SoftLabel({
-    required this.icon,
-    required this.text,
-    this.accent = const Color(0xFF15151A),
-  });
-
-  final IconData icon;
-  final String text;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 15, color: accent),
-        const SizedBox(width: 7),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.45,
-            color: accent,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.text,
-    required this.onPressed,
-    this.icon,
-  });
-
-  final String text;
-  final VoidCallback onPressed;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onPressed,
-      child: icon == null
-          ? Text(text)
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18),
-                const SizedBox(width: 8),
-                Text(text),
-              ],
-            ),
-    );
-  }
-}
-
-class _Surface extends StatelessWidget {
-  const _Surface({
-    required this.child,
-    this.padding = const EdgeInsets.all(18),
-  });
-
-  final Widget child;
-  final EdgeInsets padding;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x02000000),
-            blurRadius: 6,
-            offset: Offset(0, 3),
           ),
         ],
       ),
-      child: child,
+    );
+  }
+}
+
+class _RecentAlbums extends StatelessWidget {
+  const _RecentAlbums({required this.albums});
+
+  final List<Album> albums;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = albums.take(3).toList();
+
+    return DashCard(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Your albums',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/albums'),
+                child: const Text('View all'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return AlbumGrid(albums: shown);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PromoCard extends StatelessWidget {
+  const _PromoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const bullets = [
+      'Full access to all features',
+      'Cloud storage after your event',
+      'Perfect for any occasion',
+      'One-time payment',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFBCFDB)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF5F7), Color(0xFFFFE7EE)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 15, color: _pink),
+              SizedBox(width: 6),
+              Text(
+                'LIMITED TIME OFFER',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: _pink,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Create a '),
+                const TextSpan(
+                  text: 'QR album',
+                  style: TextStyle(color: Color(0xFF9F1239)),
+                ),
+                const TextSpan(text: ' for just '),
+                TextSpan(
+                  text: Plans.basic.priceLabel,
+                  style: const TextStyle(color: _pink),
+                ),
+              ],
+            ),
+            style: const TextStyle(
+              fontSize: 32,
+              height: 1.12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.9,
+              color: Color(0xFF1B1B1F),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text(
+                '\$25',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  decoration: TextDecoration.lineThrough,
+                  color: Colors.black.withOpacity(0.35),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDD5E0),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  '60% OFF',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _pink,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'One-time payment. No subscription. No hidden fees.',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF3F3F46),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 24,
+            runSpacing: 10,
+            children: [
+              for (final b in bullets)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 20,
+                      color: _pink,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        b,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF3F3F46),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              onPressed: () => context.go('/create'),
+              icon: const Icon(Icons.diamond_outlined, size: 20),
+              label: Text('Create album now for ${Plans.basic.priceLabel}'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0B0B10),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WhyChoose extends StatelessWidget {
+  const _WhyChoose();
+
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (
+        Icons.qr_code_2_rounded,
+        Color(0xFFFDE8EE),
+        Color(0xFFE11D48),
+        'QR code sharing',
+        'Easy for guests to join',
+      ),
+      (
+        Icons.shield_outlined,
+        Color(0xFFE0F2FE),
+        Color(0xFF0284C7),
+        'Moderation tools',
+        'Approve, hide or auto-approve',
+      ),
+      (
+        Icons.cloud_upload_rounded,
+        Color(0xFFE7F7EC),
+        Color(0xFF22C55E),
+        'Guest uploads',
+        'Photos, videos and messages',
+      ),
+      (
+        Icons.download_rounded,
+        Color(0xFFFFF1DB),
+        Color(0xFFF59E0B),
+        'ZIP export',
+        'Download all photos and videos',
+      ),
+      (
+        Icons.slideshow_rounded,
+        Color(0xFFF1EAFE),
+        Color(0xFF8B5CF6),
+        'Live slideshow',
+        'View on any screen',
+      ),
+      (
+        Icons.palette_outlined,
+        Color(0xFFFDE8EE),
+        Color(0xFFE11D48),
+        'Customizable album',
+        'Personalize with your own style',
+      ),
+      (
+        Icons.lock_outline_rounded,
+        Color(0xFFFFF1DB),
+        Color(0xFFF59E0B),
+        'Privacy controls',
+        'Keep your memories safe',
+      ),
+      (
+        Icons.headset_mic_outlined,
+        Color(0xFFE0F2FE),
+        Color(0xFF0284C7),
+        'Email support',
+        'Get help within 24–48 hours',
+      ),
+    ];
+
+    return DashCard(
+      padding: const EdgeInsets.all(26),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Why choose MyPhotoQR?',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Everything you need for a seamless photo sharing experience.',
+            style: TextStyle(fontSize: 14.5, color: Color(0xFF6A6A74)),
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoCols = constraints.maxWidth >= 460;
+              final width = twoCols
+                  ? (constraints.maxWidth - 16) / 2
+                  : constraints.maxWidth;
+
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final it in items)
+                    SizedBox(
+                      width: width,
+                      child: Row(
+                        children: [
+                          Icon(it.$1, color: it.$3, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  it.$4,
+                                  style: const TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  it.$5,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF6A6A74),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PopularEvents extends StatelessWidget {
+  const _PopularEvents();
+
+  @override
+  Widget build(BuildContext context) {
+    const events = [
+      ('wedding', 'Wedding', Icons.favorite_outline_rounded, Color(0xFF3B5BDB)),
+      ('birthday', 'Birthday', Icons.card_giftcard_rounded, Color(0xFFE11D48)),
+      (
+        'baby_shower',
+        'Baby Shower',
+        Icons.child_friendly_outlined,
+        Color(0xFF8B5CF6),
+      ),
+      (
+        'anniversary',
+        'Anniversary',
+        Icons.favorite_border_rounded,
+        Color(0xFFE11D48),
+      ),
+      ('graduation', 'Graduation', Icons.school_rounded, Color(0xFF2563EB)),
+      (
+        'corporate',
+        'Corporate Event',
+        Icons.business_center_rounded,
+        Color(0xFF92400E),
+      ),
+    ];
+
+    return DashCard(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Popular event types',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/create'),
+                child: const Text('View all'),
+              ),
+            ],
+          ),
+          const Text(
+            'Start with a template designed for your special occasion.',
+            style: TextStyle(fontSize: 14, color: Color(0xFF6A6A74)),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final e in events)
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => context.go('/create?type=${e.$1}'),
+                  child: Container(
+                    width: 112,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFEDEDF1)),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(e.$3, color: e.$4, size: 30),
+                        const SizedBox(height: 10),
+                        Text(
+                          e.$2,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: _ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HowItWorks extends StatelessWidget {
+  const _HowItWorks({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      (
+        Color(0xFFE11D48),
+        'Create your album',
+        'Add event details and customize',
+      ),
+      (Color(0xFF8B5CF6), 'Get your QR code', 'Share it with your guests'),
+      (
+        Color(0xFF2563EB),
+        'Collect memories',
+        'Guests upload photos, videos and messages',
+      ),
+      (Color(0xFF22C55E), 'Download & keep', 'Export everything anytime'),
+    ];
+
+    return DashCard(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'How it works',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: _ink,
+            ),
+          ),
+          const Text(
+            'Create. Share. Collect. Cherish.',
+            style: TextStyle(fontSize: 14, color: Color(0xFF6A6A74)),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (var i = 0; i < steps.length; i++)
+                SizedBox(
+                  width: 120,
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: steps[i].$1,
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        steps[i].$2,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        steps[i].$3,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          height: 1.3,
+                          color: Color(0xFF8A8A94),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

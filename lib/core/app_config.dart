@@ -12,6 +12,12 @@ class AppConfig {
   // It should look like: price_123...
   static const String stripeAlbumPriceId = 'price_1UBf9h3kPVs6fjFLaoNK5y7u';
 
+  // Premium plan ($19.99, one-time). Product: prod_VIZOEGFMmybozl
+  static const String stripePremiumPriceId = 'price_1UHyG63kPVs6fjFLBIPwCsSo';
+
+  // Permanent archive add-on ($49.99 / year, recurring). Product: prod_VIZQxIJM5P3b6o
+  static const String stripeArchivePriceId = 'price_1UHyHX3kPVs6fjFLC0DcN62Y';
+
   static const String albumMediaBucket = 'album-media';
 
   static const String paymentSuccessUrl =

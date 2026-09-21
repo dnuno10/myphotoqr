@@ -88,14 +88,30 @@ serve(async (req) => {
         ...albumMeta,
       };
 
+      const addonPriceId = body.addon_price_id;
+      const withArchive = typeof addonPriceId === "string" &&
+        addonPriceId.length > 0;
+
+      // A recurring add-on requires subscription mode; the one-time album
+      // price is charged on the first invoice together with the add-on.
       const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        line_items: [{ price: priceId, quantity: 1 }],
+        mode: withArchive ? "subscription" : "payment",
+        line_items: [
+          { price: priceId, quantity: 1 },
+          ...(withArchive ? [{ price: addonPriceId, quantity: 1 }] : []),
+        ],
         success_url: successUrl,
         cancel_url: cancelUrl,
         client_reference_id: user.id,
         customer_email: user.email ?? undefined,
         metadata,
+        ...(withArchive
+          ? {
+            subscription_data: {
+              metadata: { supabase_user_id: user.id, kind: "archive" },
+            },
+          }
+          : {}),
       });
 
       return new Response(JSON.stringify({ url: session.url }), {
@@ -176,6 +192,14 @@ serve(async (req) => {
       const codeProtected =
         (session.metadata?.album_code_protected ?? "false") === "true";
       const guestCodeHash = session.metadata?.album_guest_code_hash ?? null;
+      const albumPlan = session.metadata?.album_plan === "premium"
+        ? "premium"
+        : "basic";
+      const uploadEnabled =
+        (session.metadata?.album_upload_enabled ?? "true") !== "false";
+      // Moderation is a Premium feature.
+      const moderationEnabled = albumPlan === "premium" &&
+        (session.metadata?.album_moderation_enabled ?? "false") === "true";
 
       const albumThemeColorMode = normalizeMode(albumThemeColorModeRaw);
       const albumThemeBackgroundMode = normalizeMode(albumThemeBackgroundModeRaw);
@@ -235,7 +259,7 @@ serve(async (req) => {
         guest_access_code_hash: codeProtected ? guestCodeHash : null,
         guest_access_code_hint: codeProtected ? "Código requerido" : null,
         status: "active",
-        upload_enabled: true,
+        upload_enabled: uploadEnabled,
         gallery_enabled: true,
       };
 
@@ -248,6 +272,24 @@ serve(async (req) => {
       if (insertedAlbumError) throw insertedAlbumError;
 
       const albumId = insertedAlbum.id as string;
+
+      if (moderationEnabled) {
+        const { error: settingsError } = await adminSupabase
+          .from("album_settings")
+          .upsert(
+            {
+              album_id: albumId,
+              moderation_enabled: true,
+              auto_approve_uploads: false,
+              auto_approve_notes: false,
+            },
+            { onConflict: "album_id" },
+          );
+
+        if (settingsError) {
+          console.error("album_settings upsert failed", settingsError.message);
+        }
+      }
 
       await stripe.checkout.sessions.update(sessionId, {
         metadata: {

@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/login_page.dart';
 import '../features/albums/dashboard_page.dart';
 import '../features/albums/create_album_page.dart';
+import '../features/albums/albums_page.dart';
+import '../features/albums/pricing_page.dart';
 import '../features/albums/album_admin_page.dart';
 import '../features/albums/album_settings_page.dart';
 import '../features/payments/payment_success_page.dart';
@@ -66,7 +68,15 @@ class AppRouter {
         ),
       ),
       GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
-      GoRoute(path: '/create', builder: (_, __) => const CreateAlbumPage()),
+      GoRoute(path: '/albums', builder: (_, __) => const AlbumsPage()),
+      GoRoute(path: '/pricing', builder: (_, __) => const PricingPage()),
+      GoRoute(
+        path: '/create',
+        builder: (_, state) => CreateAlbumPage(
+          initialEventType: state.uri.queryParameters['type'],
+          initialPlan: state.uri.queryParameters['plan'],
+        ),
+      ),
       GoRoute(
         path: '/payment-success',
         builder: (_, state) {

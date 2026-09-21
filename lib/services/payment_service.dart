@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_config.dart';
+import '../core/plans.dart';
 import '../core/supabase_client.dart';
 
 class PaymentUserMessageException implements Exception {
@@ -31,6 +32,10 @@ class AlbumCheckoutDraft {
     this.themeEmoji,
     this.eventTypeLabel,
     this.guestCode,
+    this.plan = AlbumPlan.basic,
+    this.guestUploadsEnabled = true,
+    this.moderationEnabled = false,
+    this.archiveAddOn = false,
   });
 
   final String title;
@@ -48,6 +53,10 @@ class AlbumCheckoutDraft {
   final String? themeEmoji;
   final String? eventTypeLabel;
   final String? guestCode;
+  final AlbumPlan plan;
+  final bool guestUploadsEnabled;
+  final bool moderationEnabled;
+  final bool archiveAddOn;
 
   Map<String, dynamic> toJson() {
     return {
@@ -78,6 +87,10 @@ class AlbumCheckoutDraft {
       'album_theme_color_mode': themeColorMode,
       'album_theme_background_mode': themeBackgroundMode,
       'album_code_protected': codeProtected ? 'true' : 'false',
+      'album_plan': plan.name,
+      'album_upload_enabled': guestUploadsEnabled ? 'true' : 'false',
+      'album_moderation_enabled': moderationEnabled ? 'true' : 'false',
+      'album_archive_addon': archiveAddOn ? 'true' : 'false',
     };
 
     if (themeColorMode == 'gradient' && themeColorGradient != null) {
@@ -152,7 +165,11 @@ class PaymentService {
       'Checkout is not available right now. Please contact support.';
 
   Future<void> startAlbumCheckout(AlbumCheckoutDraft draft) async {
-    if (AppConfig.stripeAlbumPriceId.startsWith('price_REPLACE')) {
+    final priceId = Plans.byId(draft.plan.name).priceId;
+
+    if (priceId.startsWith('price_REPLACE') ||
+        (draft.archiveAddOn &&
+            AppConfig.stripeArchivePriceId.startsWith('price_REPLACE'))) {
       throw const PaymentUserMessageException(_checkoutConfigError);
     }
 
@@ -175,7 +192,8 @@ class PaymentService {
       'stripe-checkout-myphotoqr',
       body: {
         'mode': 'create_album',
-        'price_id': AppConfig.stripeAlbumPriceId,
+        'price_id': priceId,
+        if (draft.archiveAddOn) 'addon_price_id': AppConfig.stripeArchivePriceId,
         'product_id': AppConfig.stripeProductId,
         'success_url': AppConfig.paymentSuccessUrl,
         'cancel_url': AppConfig.paymentCancelUrl,

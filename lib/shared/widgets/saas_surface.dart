@@ -34,13 +34,6 @@ class SaasSurface extends StatelessWidget {
         color: color ?? theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: borderColor ?? theme.dividerColor),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
       ),
       child: child,
     );

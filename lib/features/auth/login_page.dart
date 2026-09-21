@@ -115,7 +115,10 @@ class _LoginPageState extends State<LoginPage> {
         _otpCtrl.clear();
       });
 
-      _showToast(message: 'Code sent to your email.', type: ToastType.success);
+      _showToast(
+        message: 'Code sent. Check your spam folder if you don\'t see it.',
+        type: ToastType.success,
+      );
     } catch (_) {
       if (!mounted) return;
 
@@ -284,6 +287,36 @@ class _AuthCard extends StatelessWidget {
               color: Colors.black.withOpacity(0.45),
             ),
           ),
+          if (otpSent) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.mail_outline_rounded,
+                    size: 16,
+                    color: Color(0xFF6A6A74),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    "Can't find it? Check your spam or junk folder.",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6A6A74),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 34),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 240),
